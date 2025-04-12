@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
+using JetBrains.Annotations;
 using RimWorld;
 using RimWorld.Planet;
-using SmashTools.UnitTesting;
 using UnityEngine;
 using Verse;
 using Verse.Profile;
@@ -26,6 +27,8 @@ public class UnitTestManager : IDevTool
   private const string ManagerName = "Unit Test";
 
   private static bool runningUnitTests;
+
+  private ModContentPack mod;
   private readonly Dictionary<string, UnitTestGroup> unitTests = [];
   private Dialog_TestExplorer testExplorer;
 
@@ -36,7 +39,10 @@ public class UnitTestManager : IDevTool
   /// <para/>
   /// This event will fire when unit testing begins, and again when it finishes.
   /// </summary>
+  [UsedImplicitly]
   public static event Action<bool> OnUnitTestStateChange;
+
+  internal List<TestPlan> TestPlans { get; } = [];
 
   public static bool RunningUnitTests
   {
@@ -72,9 +78,43 @@ public class UnitTestManager : IDevTool
     return true;
   }
 
-  void IDevTool.Init()
+  void IDevTool.Init(ModContentPack modContentPack)
   {
+    this.mod = modContentPack;
+
+    foreach (UnitTestGroup testGroup in unitTests.Values)
+    {
+      testGroup.SortByExecutionPriority();
+    }
     testExplorer = new Dialog_TestExplorer(this, unitTests.Values.ToList());
+    ReloadTestPlans();
+  }
+
+  private void ReloadTestPlans()
+  {
+    TestPlans.Clear();
+    DirectoryInfo dirInfo = new(GenFile.ResolveCaseInsensitiveFilePath(mod.RootDir, "TestPlans"));
+    if (dirInfo.Exists)
+    {
+      foreach (FileInfo file in dirInfo.GetFiles("*.xml", SearchOption.AllDirectories))
+      {
+        try
+        {
+          TestPlan testPlan = DirectXmlLoader.ItemFromXmlFile<TestPlan>(file.FullName);
+          if (testPlan.TryDoPostLoad(this))
+            TestPlans.Add(testPlan);
+        }
+        catch (Exception ex)
+        {
+          Log.Error($"Exception thrown loading TestPlan {file.FullName}.\n{ex}");
+        }
+      }
+    }
+  }
+
+  internal bool TryGetUnitTest(string category, out UnitTestGroup testGroup)
+  {
+    return unitTests.TryGetValue(category, out testGroup);
   }
 
   public void OpenMenu()
@@ -101,7 +141,7 @@ public class UnitTestManager : IDevTool
     }
   }
 
-  internal void RunPlan(TestSuiteDef suiteDef)
+  internal void RunPlan(TestPlan testPlan)
   {
     if (RunningUnitTests)
     {
@@ -109,7 +149,7 @@ public class UnitTestManager : IDevTool
         historical: false);
       return;
     }
-    ExecuteUnitTests(suiteDef);
+    ExecuteUnitTests(testPlan);
   }
 
   private void ExecuteUnitTests(UnitTestGroup testGroup, HashSet<UnitTestGroup.Method> filter)
@@ -123,13 +163,12 @@ public class UnitTestManager : IDevTool
     }
   }
 
-  private void ExecuteUnitTests(TestSuiteDef suiteDef)
+  private void ExecuteUnitTests(TestPlan testPlan)
   {
-    //TestPlan = suiteDef;
-    //LongEventHandler.ExecuteWhenFinished(delegate
-    //{
-    //  CoroutineObject.Instance.StartCoroutine(TestPlanRoutine());
-    //});
+    LongEventHandler.ExecuteWhenFinished(delegate
+    {
+      CoroutineObject.Instance.StartCoroutine(TestPlanRoutine(testPlan));
+    });
   }
 
   private IEnumerator UnitTestRoutine(UnitTestGroup testGroup, HashSet<UnitTestGroup.Method> filter)
@@ -153,28 +192,30 @@ public class UnitTestManager : IDevTool
     OpenMenu();
   }
 
-  private IEnumerator TestPlanRoutine()
+  private IEnumerator TestPlanRoutine(TestPlan testPlan)
   {
     using UnitTestEnabler ute = new(this);
 
-    //List<TestBatch> results = [];
-    //TestType currentTestType = TestType.Disabled;
-    //foreach (TestBlock block in TestPlan.plan)
-    //{
-    //  if (StopRequested)
-    //    goto EndTest;
-    //  if (block.type == TestType.Disabled)
-    //    continue;
+    TestType currentTestType = TestType.Disabled;
+    foreach (TestBlock block in testPlan.plan)
+    {
+      if (StopRequested)
+        goto EndTest;
+      if (block.type == TestType.Disabled)
+        continue;
 
-    //  if (currentTestType != block.type)
-    //  {
-    //    // Transition between scenes
-    //    currentTestType = block.type;
-    //    foreach (object obj in SceneChangeRoutine(currentTestType))
-    //      yield return obj;
-    //  }
-    //  //testGroup.Execute(cts.Token, method);
-    //}
+      if (currentTestType != block.type)
+      {
+        // Transition between scenes
+        currentTestType = block.type;
+        foreach (object obj in SceneChangeRoutine(currentTestType))
+          yield return obj;
+      }
+      foreach (UnitTestGroup testGroup in block.UnitTests)
+      {
+        testGroup.Execute(cts.Token);
+      }
+    }
 
     EndTest: ;
     if (Current.ProgramState != ProgramState.Entry)
@@ -188,8 +229,7 @@ public class UnitTestManager : IDevTool
         yield return null;
       }
     }
-    LongEventHandler.ClearQueuedEvents();
-    //ShowResults(results);
+    OpenMenu();
   }
 
   private static IEnumerable SceneChangeRoutine(TestType testType)
@@ -253,7 +293,7 @@ public class UnitTestManager : IDevTool
     Current.ProgramState = ProgramState.Entry;
     Current.Game = new Game();
     Current.Game.InitData = new GameInitData();
-    Current.Game.Scenario = TemplateScenarioDefOf.TestScenario.scenario;
+    Current.Game.Scenario = ScenarioDefOf.Crashlanded.scenario;
     Find.Scenario.PreConfigure();
     Current.Game.storyteller = new Storyteller(StorytellerDefOf.Cassandra, DifficultyDefOf.Rough);
 

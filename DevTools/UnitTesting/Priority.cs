@@ -1,6 +1,6 @@
 ﻿namespace DevTools.UnitTesting;
 
-public enum ExecutionPriority
+public enum Priority
 {
   Last = int.MinValue,
   BelowNormal = -100,

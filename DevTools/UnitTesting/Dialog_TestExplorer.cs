@@ -75,12 +75,21 @@ internal class Dialog_TestExplorer : Window
   public override void DoWindowContents(Rect inRect)
   {
     using TextBlock resultText = new(GameFont.Small, TextAnchor.MiddleLeft);
-    Widgets.Label(inRect, "Test Explorer");
-    inRect.yMin += HeaderPadding;
 
-    DrawHeaderButtons(inRect);
+    Rect headerRect = inRect with { height = LineHeight };
+    using (new TextBlock(GameFont.Small, TextAnchor.UpperLeft))
+    {
+      Widgets.Label(headerRect, "Test Explorer");
+      headerRect.yMin += LineHeight;
+    }
 
-    Rect outRect = inRect;
+    DrawHeaderButtons(headerRect);
+
+    //Widgets.Label(headerRect, "0 Warnings 0 Errors");
+    headerRect.yMin += LineHeight;
+    Widgets.DrawLineHorizontal(headerRect.x, headerRect.y, headerRect.width);
+
+    Rect outRect = inRect with { yMin = headerRect.yMin + 5 };
     Rect viewRect = outRect.AtZero() with { width = outRect.width - 16, height = Height };
     Widgets.BeginScrollView(outRect, ref scrollPos, viewRect);
     float curY = 0;
@@ -129,7 +138,7 @@ internal class Dialog_TestExplorer : Window
           curY += LineHeight;
           testChkRect.y = curY;
           labelRect.y = curY;
-          CheckboxDraw(testChkRect, method.Result == Status.Passed, false);
+          CheckboxDraw(testChkRect, method.Status == Status.Passed, false);
           Widgets.Label(labelRect, method.Name);
           selector.HandleClicks(labelRect, method);
           if (selector.IsSelected(method))
@@ -145,13 +154,25 @@ internal class Dialog_TestExplorer : Window
   {
     Rect buttonRect = (rect with { size = new Vector2(LineHeight, LineHeight) }).ContractedBy(3);
     if (Widgets.ButtonImage(buttonRect, TexButton.SpeedButtonTextures[2], Color.green,
-      tooltip: "Run All Tests"))
+      tooltip: "Run Plan"))
     {
+      SoundDefOf.Click.PlayOneShotOnCamera();
+      if (!unitTestManager.TestPlans.NullOrEmpty())
+      {
+        List<FloatMenuOption> options = [];
+        foreach (TestPlan testPlan in unitTestManager.TestPlans)
+        {
+          options.Add(new FloatMenuOption(testPlan.name,
+            delegate { unitTestManager.RunPlan(testPlan); }));
+        }
+        Find.WindowStack.Add(new FloatMenu(options));
+      }
     }
     buttonRect.x += buttonRect.width;
     if (Widgets.ButtonImage(buttonRect, TexButton.SpeedButtonTextures[1], Color.green,
       tooltip: "Run"))
     {
+      SoundDefOf.Click.PlayOneShotOnCamera();
     }
   }
 

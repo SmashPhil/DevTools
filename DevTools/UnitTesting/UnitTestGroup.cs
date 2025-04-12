@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using Verse;
+using NullReferenceException = System.NullReferenceException;
 
 namespace DevTools.UnitTesting;
 
@@ -60,44 +61,47 @@ internal class UnitTestGroup
       // Prepare
       foreach (Method method in prepares)
       {
-        Status status = method.Execute(out string failMessage);
-        if (status < finalStatus)
-          finalStatus = status;
-        if (status == Status.Failed)
+        method.Execute(out string failMessage);
+        if (method.Status < finalStatus)
+          finalStatus = method.Status;
+        if (method.Status == Status.Failed)
           FailMessage = failMessage;
         if (token.IsCancellationRequested)
-          return;
+        {
+          // We need to perform cleanup before we can cancel testing
+          finalStatus = Status.Canceled;
+          break;
+        }
       }
 
-      // If Prepare fails don't run any further tests. They will likely fail anyways.
-      if (finalStatus == Status.Failed)
-        return;
-
-      // Tests
-      foreach (Method method in tests)
+      // If Prepare has any other status except passed, skip testing. There is a good chance
+      // the tests will be invalid.
+      if (finalStatus == Status.Passed)
       {
-        if (filter != null && filter.Any() && !filter.Contains(method))
-          continue;
+        // Tests
+        foreach (Method method in tests)
+        {
+          if (filter != null && filter.Any() && !filter.Contains(method))
+            continue;
 
-        Status status = method.Execute(out string failMessage);
-        if (status < finalStatus)
-          finalStatus = status;
-        if (status == Status.Failed)
-          FailMessage = failMessage;
-        if (token.IsCancellationRequested)
-          return;
+          method.Execute(out string failMessage);
+          if (method.Status < finalStatus)
+            finalStatus = method.Status;
+          if (method.Status == Status.Failed)
+            FailMessage = failMessage;
+          if (token.IsCancellationRequested)
+            return;
+        }
       }
 
       // Clean Up
       foreach (Method method in cleanUps)
       {
-        Status status = method.Execute(out string failMessage);
-        if (status < finalStatus)
-          finalStatus = status;
-        if (status == Status.Failed)
+        method.Execute(out string failMessage);
+        if (method.Status < finalStatus)
+          finalStatus = method.Status;
+        if (method.Status == Status.Failed)
           FailMessage = failMessage;
-        if (token.IsCancellationRequested)
-          return;
       }
     }
     finally
@@ -133,6 +137,13 @@ internal class UnitTestGroup
     }
   }
 
+  public void SortByExecutionPriority()
+  {
+    prepares.Sort();
+    tests.Sort();
+    cleanUps.Sort();
+  }
+
   private static bool MethodIsSafe(MethodInfo method, out string reason)
   {
     reason = null;
@@ -150,7 +161,7 @@ internal class UnitTestGroup
     return true;
   }
 
-  public class Method
+  public class Method : IComparable<Method>
   {
     private static readonly object[] emptyArgs = [];
 
@@ -173,15 +184,17 @@ internal class UnitTestGroup
       instance = Activator.CreateInstance(declaringType);
     }
 
-    public MethodType Type { get; }
+    private MethodType Type { get; }
 
-    public Status Result { get; private set; }
+    public Status Status { get; private set; }
 
-    public List<(string name, bool result)> ResultList { get; } = [];
+    public string ExtraInfo { get; private set; }
+
+    private List<(string name, Status status)> ResultList { get; } = [];
 
     public string Name => method.Name;
 
-    public Status Execute(out string failMessage)
+    public void Execute(out string failMessage)
     {
       failMessage = null;
       try
@@ -191,19 +204,52 @@ internal class UnitTestGroup
         {
           method.Invoke(instance, emptyArgs);
         }
-        Result = ResultList.All(tuple => tuple.result) ? Status.Passed : Status.Failed;
+        Status = Status.Passed;
+        foreach ((string name, Status status) in ResultList)
+        {
+          if (status is Status.Failed)
+          {
+            Status = status;
+            break;
+          }
+          if (status is Status.Canceled or Status.Skipped)
+          {
+            // Reason for skip or cancellation will be in the attached label
+            ExtraInfo = name;
+            Status = status;
+            break;
+          }
+        }
       }
       catch (AssertFailException ex)
       {
         failMessage = $"[{Type}::{method.Name}] Assertion failed!\n{ex}";
-        return Status.Failed;
+        Status = Status.Failed;
       }
       catch (Exception ex)
       {
         failMessage = $"[{Type}::{method.Name}] Exception thrown!\n{ex}";
-        return Status.Failed;
+        Status = Status.Failed;
       }
-      return Status.Passed;
+    }
+
+    int IComparable<Method>.CompareTo(Method other)
+    {
+      // There should never be any null Method entries. UnitTestManager was not initialized
+      // properly and testing may throw as well.
+      if (other is null)
+        throw new NullReferenceException();
+
+      ExecutionPriorityAttribute lhsAttr = method.TryGetAttribute<ExecutionPriorityAttribute>();
+      ExecutionPriorityAttribute rhsAttr = other.method.TryGetAttribute<ExecutionPriorityAttribute>();
+      int lhsInt = lhsAttr?.Priority ?? 0;
+      int rhsInt = rhsAttr?.Priority ?? 0;
+
+      if (lhsInt == rhsInt)
+        return 0;
+      if (lhsInt < rhsInt)
+        return -1;
+      return 1;
     }
 
     internal enum MethodType

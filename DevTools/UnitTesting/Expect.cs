@@ -6,7 +6,7 @@ namespace DevTools.UnitTesting;
 
 public static class Expect
 {
-  public static event Action<string, bool> OnResult;
+  public static event Action<string, Status> OnResult;
 
   public static void IsTrue(string label, bool condition)
   {
@@ -30,6 +30,11 @@ public static class Expect
 
   private static void Signal(string label, bool result)
   {
+    Signal(label, result ? Status.Passed : Status.Failed);
+  }
+
+  internal static void Signal(string label, Status status)
+  {
     if (!UnitTestManager.RunningUnitTests)
     {
       Trace.Fail(
@@ -37,14 +42,14 @@ public static class Expect
         "for unit testing.");
       return;
     }
-    OnResult?.Invoke(label, result);
+    OnResult?.Invoke(label, status);
   }
 
   internal readonly struct TestWatcher : IDisposable
   {
-    private readonly List<(string, bool)> outputList;
+    private readonly List<(string, Status)> outputList;
 
-    public TestWatcher(List<(string, bool)> outputList)
+    public TestWatcher(List<(string, Status)> outputList)
     {
       this.outputList = outputList;
       OnResult += OutputSignalToList;
@@ -55,9 +60,9 @@ public static class Expect
       OnResult -= OutputSignalToList;
     }
 
-    private void OutputSignalToList(string label, bool result)
+    private void OutputSignalToList(string label, Status status)
     {
-      outputList.Add((label, result));
+      outputList.Add((label, status));
     }
   }
 }

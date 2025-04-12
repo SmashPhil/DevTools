@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using JetBrains.Annotations;
 using LudeonTK;
 using RimWorld.Planet;
 using Verse;
@@ -23,10 +22,10 @@ internal class BenchmarkManager : IDevTool
 
   bool IDevTool.TryRegisterType(Type type)
   {
-    BenchmarkClassAttribute attr = type.TryGetAttribute<BenchmarkClassAttribute>();
-    if (attr is null)
+    BenchmarkClassAttribute classAttr = type.TryGetAttribute<BenchmarkClassAttribute>();
+    if (classAttr is null)
       return false;
-    string category = attr.Category ?? type.FullName;
+    string category = classAttr.Category ?? type.FullName;
 
     // Shouldn't be possible but ReSharper won't shut up so either we do a sanity check
     // or we disable the warning.
@@ -34,12 +33,12 @@ internal class BenchmarkManager : IDevTool
       throw new NullReferenceException(nameof(category));
 
     if (!benchmarks.ContainsKey(category))
-      benchmarks[category] = new BenchmarkMethods(category, attr.RunAsync);
+      benchmarks[category] = new BenchmarkMethods(category, classAttr);
     benchmarks[category].AddFromType(type);
     return true;
   }
 
-  void IDevTool.Init()
+  void IDevTool.Init(ModContentPack mod)
   {
   }
 
@@ -50,6 +49,9 @@ internal class BenchmarkManager : IDevTool
     List<DebugMenuOption> options = [];
     foreach (BenchmarkMethods methods in benchmarks.Values.OrderBy(bm => bm.category))
     {
+      if (!IsAllowedGameState(methods.allowedGameStates))
+        continue;
+
       options.Add(new DebugMenuOption(methods.category, DebugMenuOptionMode.Action,
         () => RunBenchmarkFor(methods)));
     }
@@ -101,9 +103,12 @@ internal class BenchmarkManager : IDevTool
 
   private static void RunBenchmarkFor(BenchmarkMethods benchmarks)
   {
-    RunSetupFor(benchmarks);
-    LongEventHandler.QueueLongEvent(() => RunBenchmarkMethods(benchmarks),
-      string.Empty, benchmarks.runAsync, ExceptionHandler);
+    LongEventHandler.QueueLongEvent(delegate
+    {
+      InvokeMethods(benchmarks.setupMethods);
+      RunBenchmarkMethods(benchmarks);
+      InvokeMethods(benchmarks.onFinishMethods);
+    }, string.Empty, benchmarks.runAsync, ExceptionHandler);
     return;
 
     static void ExceptionHandler(Exception ex)
@@ -112,10 +117,11 @@ internal class BenchmarkManager : IDevTool
     }
   }
 
-  private static void RunSetupFor(BenchmarkMethods benchmarks)
+  private static void InvokeMethods(List<BenchmarkMethod> methods)
   {
-    foreach ((Type type, MethodInfo method) in benchmarks.setupMethods)
+    foreach ((Type type, string name, MethodInfo method) in methods)
     {
+      LongEventHandler.SetCurrentEventText($"Running {name}");
       ParameterInfo[] parameters = method.GetParameters();
       switch (parameters.Length)
       {
@@ -125,13 +131,13 @@ internal class BenchmarkManager : IDevTool
         case 1:
           GenGeneric.InvokeStaticGenericMethod(
             typeof(BenchmarkManager),
-            parameters[0].ParameterType, nameof(RunSetupWithContext), type, method);
+            parameters[0].ParameterType, nameof(InvokeWithContext), type, method);
           break;
       }
     }
   }
 
-  private static void RunSetupWithContext<T>(Type type, MethodInfo method) where T : struct
+  private static void InvokeWithContext<T>(Type type, MethodInfo method) where T : struct
   {
     method.Invoke(null, [GetContext<T>(type)]);
   }
@@ -206,19 +212,26 @@ internal class BenchmarkManager : IDevTool
     public readonly string category;
     public int sampleSize = 1;
     public readonly List<BenchmarkMethod> tests = [];
-    public readonly List<(Type parentType, MethodInfo method)> setupMethods = [];
+    public readonly List<BenchmarkMethod> setupMethods = [];
+    public readonly List<BenchmarkMethod> onFinishMethods = [];
     public readonly bool runAsync;
+    public readonly AllowedGameStates allowedGameStates;
 
-    public BenchmarkMethods(string category, bool runAsync)
+    public BenchmarkMethods(string category, BenchmarkClassAttribute classAttr)
     {
       this.category = category;
-      this.runAsync = runAsync;
+      this.runAsync = classAttr.RunAsync;
+      this.allowedGameStates = classAttr.AllowedGameStates;
     }
 
     public void AddFromType(Type type)
     {
-      Assert.IsTrue(type.TryGetAttribute<BenchmarkClassAttribute>().RunAsync == runAsync,
-        "Mismatched RunAsync setting on benchmark categories.");
+      BenchmarkClassAttribute classAttr = type.TryGetAttribute<BenchmarkClassAttribute>();
+      if (classAttr.AllowedGameStates != allowedGameStates)
+        Log.Error("Mismatched AllowedGameStates property on benchmark categories.");
+      if (classAttr.RunAsync != runAsync)
+        Log.Error("Mismatched RunAsync setting on benchmark categories.");
+
       SampleSizeAttribute sampleSizeAttr = type.TryGetAttribute<SampleSizeAttribute>();
       if (sampleSizeAttr is not null && sampleSizeAttr.Count > sampleSize)
         sampleSize = sampleSizeAttr.Count;
@@ -243,7 +256,16 @@ internal class BenchmarkManager : IDevTool
             Log.Error($"Unable to run {method.Name} benchmark. {reason}");
             continue;
           }
-          setupMethods.Add((type, method));
+          setupMethods.Add((type, method.Name, method));
+        }
+        else if (method.TryGetAttribute<OnFinishAttribute>() is not null)
+        {
+          if (!MethodIsSafe(method, out string reason))
+          {
+            Log.Error($"Unable to run {method.Name} benchmark. {reason}");
+            continue;
+          }
+          onFinishMethods.Add((type, method.Name, method));
         }
       }
     }

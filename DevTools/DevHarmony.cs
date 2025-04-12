@@ -26,7 +26,7 @@ internal static class DevHarmony
     LoadTypes();
   }
 
-  private static Harmony Harmony { get; } = new(ModId);
+  internal static Harmony Harmony { get; } = new(ModId);
 
   private static T CreateDevTool<T>() where T : IDevTool, new()
   {
@@ -50,14 +50,21 @@ internal static class DevHarmony
       {
         foreach (IDevTool devTool in toolList)
         {
-          anyRegistered |= devTool.TryRegisterType(type);
+          try
+          {
+            anyRegistered |= devTool.TryRegisterType(type);
+          }
+          catch (Exception ex)
+          {
+            Log.Error($"Exception thrown loading type {type.Name} for {devTool}.\n{ex}");
+          }
         }
       }
       if (anyRegistered)
       {
         foreach (IDevTool devTool in toolList)
         {
-          devTool.Init();
+          devTool.Init(mod);
         }
         modDevTools[mod] = toolList;
       }

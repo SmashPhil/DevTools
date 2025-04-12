@@ -23,14 +23,21 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>CS0649</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>..\..\1.5\Assemblies\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
+    <OutputPath>..\..\1.5\Assemblies\</OutputPath>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony, Version=2.3.5.0, Culture=neutral, processorArchitecture=MSIL">
@@ -87,19 +94,19 @@
     <Compile Include="DevHarmony.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UnitTesting\Result.cs" />
+    <Compile Include="UnitTesting\Test.cs" />
+    <Compile Include="UnitTesting\UnitTestAsyncHandler.cs" />
     <Compile Include="UnitTesting\UnitTestGroup.cs" />
     <Compile Include="UnitTesting\Attributes\CleanUpAttribute.cs" />
     <Compile Include="UnitTesting\Attributes\PrepareAttribute.cs" />
-    <Compile Include="UnitTesting\Attributes\TestPriorityAttribute.cs" />
+    <Compile Include="UnitTesting\Attributes\ExecutionPriorityAttribute.cs" />
     <Compile Include="UnitTesting\Attributes\UnitTestAttribute.cs" />
     <Compile Include="UnitTesting\Dialog_TestExplorer.cs" />
-    <Compile Include="UnitTesting\ExecutionPriority.cs" />
+    <Compile Include="UnitTesting\Priority.cs" />
     <Compile Include="UnitTesting\Expect.cs" />
     <Compile Include="UnitTesting\GenerationTemplate.cs" />
-    <Compile Include="UnitTesting\MapGeneratorDefOf.cs" />
-    <Compile Include="UnitTesting\TemplateScenarioDefOf.cs" />
     <Compile Include="UnitTesting\Attributes\TestAttribute.cs" />
-    <Compile Include="UnitTesting\TestSuiteDef.cs" />
+    <Compile Include="UnitTesting\TestPlan.cs" />
     <Compile Include="UnitTesting\TestType.cs" />
     <Compile Include="UnitTesting\UnitTestManager.cs" />
   </ItemGroup>

@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Verse;
 
 namespace DevTools;
 
@@ -12,7 +9,7 @@ internal interface IDevTool
 
   bool TryRegisterType(Type type);
 
-  void Init();
+  void Init(ModContentPack mod);
 
   void OpenMenu();
 }
