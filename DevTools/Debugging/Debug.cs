@@ -1,32 +1,26 @@
 ﻿using UnityEngine;
 using Verse;
 
-namespace DevTools
+namespace DevTools;
+
+public static class Debug
 {
-  public static class Debug
+  private static readonly Vector2 popupSize = new(500, 650);
+
+  internal static void ShowStack(string label, string message)
   {
-    private static readonly Vector2 popupSize = new(500, 650);
+    // Extract stack trace before potentially sending it off to UnityThread
+    // where the stack trace will be completely different.
+    StackTracePopup popup = new(popupSize, label, message);
 
-    internal static void ShowStack(string label, string message)
+    if (!UnityData.IsInMainThread)
     {
-      // Extract stack trace before potentially sending it off to UnityThread
-      // where the stack trace will be completely different.
-      StackTracePopup popup = new(popupSize, label, message);
-      //if (UnitTestManager.RunningUnitTests)
-      //{
-      //  popup.SendToLog();
-      //  return;
-      //}
-
-      if (!UnityData.IsInMainThread)
-      {
-        popup.SendToLog();
-        // WindowStack is not thread safe, we'll need to hand it off to the
-        // UnityThread to invoke on the main thread.
-        //UnityThread.ExecuteOnMainThread(() => Find.WindowStack.Add(popup));
-        return;
-      }
-      Find.WindowStack.Add(popup);
+      popup.SendToLog();
+      // WindowStack is not thread safe, we'll need to hand it off to the
+      // UnityThread to invoke on the main thread.
+      //UnityThread.ExecuteOnMainThread(() => Find.WindowStack.Add(popup));
+      return;
     }
+    Find.WindowStack.Add(popup);
   }
 }
