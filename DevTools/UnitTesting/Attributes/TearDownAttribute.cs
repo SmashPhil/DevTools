@@ -3,6 +3,6 @@
 namespace DevTools.UnitTesting;
 
 [AttributeUsage(AttributeTargets.Method)]
-public class CleanUpAttribute : Attribute
+public class TearDownAttribute : Attribute
 {
 }

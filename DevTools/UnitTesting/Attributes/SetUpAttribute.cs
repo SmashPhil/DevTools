@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DevTools.Benchmarking;
+namespace DevTools.UnitTesting;
 
 [AttributeUsage(AttributeTargets.Method)]
 public class SetUpAttribute : Attribute

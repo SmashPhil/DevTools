@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
 using RimWorld;
 using RimWorld.Planet;
+using UnityEngine.Assertions;
 using Verse;
 using FieldInfo = System.Reflection.FieldInfo;
 
@@ -23,6 +25,7 @@ public class GenerationTemplate
     public OverallRainfall rainfall = OverallRainfall.Normal;
     public OverallTemperature temperature = OverallTemperature.Normal;
     public OverallPopulation population = OverallPopulation.Normal;
+    public LandmarkDensity landmarkDensity = LandmarkDensity.Normal;
   }
 
   [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
@@ -61,7 +64,7 @@ public class GenerationTemplate
 
       if (parent.HasMap)
       {
-        Assert.Fail($"Tried to generate a new map and set {parent} as its parent, but this world " +
+        Trace.Fail($"Tried to generate a new map and set {parent} as its parent, but this world " +
           $"object already has a map. One world object can't have more than 1 map.");
         parent = null;
       }

@@ -10,6 +10,7 @@ internal class TestBlock
 {
   public TestType type;
   public List<string> tests;
+  public string saveFile;
   public GenerationTemplate template;
 
   public List<UnitTestGroup> UnitTests { get; } = [];

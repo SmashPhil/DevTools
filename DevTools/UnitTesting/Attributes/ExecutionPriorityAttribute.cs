@@ -1,19 +1,23 @@
 ﻿using System;
+using JetBrains.Annotations;
 
 namespace DevTools.UnitTesting;
 
 [AttributeUsage(AttributeTargets.Method)]
-public class ExecutionPriorityAttribute : Attribute
+[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+public class ExecutionPriorityAttribute : Attribute, IMetaData
 {
-  public ExecutionPriorityAttribute(Priority priority)
-  {
-    Priority = (int)priority;
-  }
-
   public ExecutionPriorityAttribute(int priority)
   {
-    Priority = priority;
+    Key = MetaDataName.ExecutionPriority;
+    Value = priority;
   }
 
-  public int Priority { get; }
+  public ExecutionPriorityAttribute(Priority priority) : this((int)priority)
+  {
+  }
+
+  public int Key { get; }
+
+  public object Value { get; }
 }

@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace DevTools.UnitTesting;
 
-namespace DevTools.UnitTesting;
-
+// Enum values are ordered from worst to best in the context that lower
+// values will have priority on tabulated test results. Order matters!!
 public enum Status
 {
   Failed,
@@ -13,4 +9,5 @@ public enum Status
   Skipped,
   Passed,
   Pending,
+  NotRun,
 }

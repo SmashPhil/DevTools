@@ -5,4 +5,5 @@ public enum TestType
   Disabled = 0,
   MainMenu,
   Playing,
+  PostGameExit,
 }

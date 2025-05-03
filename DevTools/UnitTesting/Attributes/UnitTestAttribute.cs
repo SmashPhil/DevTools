@@ -12,7 +12,5 @@ public class UnitTestAttribute : Attribute
 
   public TestType Type { get; }
 
-  public string Category { get; set; }
-
-  public bool RunAsync { get; set; } = true;
+  public string Alias { get; set; }
 }

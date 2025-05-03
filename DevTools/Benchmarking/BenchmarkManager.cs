@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using LudeonTK;
 using RimWorld.Planet;
+using UnityEngine.Assertions;
 using Verse;
 using BenchmarkMethod = System.ValueTuple<System.Type, string, System.Reflection.MethodInfo>;
 using Result = DevTools.Benchmarking.Benchmark.Result;
@@ -32,9 +33,11 @@ internal class BenchmarkManager : IDevTool
     if (category == null)
       throw new NullReferenceException(nameof(category));
 
+    BenchmarkMethods benchmarkMethods = new(category, classAttr);
     if (!benchmarks.ContainsKey(category))
-      benchmarks[category] = new BenchmarkMethods(category, classAttr);
-    benchmarks[category].AddFromType(type);
+      benchmarks[category] = benchmarkMethods;
+    benchmarkMethods.AddFromType(type);
+    benchmarkMethods.MetaData.Load(type);
     return true;
   }
 
@@ -87,13 +90,13 @@ internal class BenchmarkManager : IDevTool
       allowed |= Current.ProgramState == ProgramState.Playing;
 
     if (allowedGameStates.HasFlag(AllowedGameStates.IsCurrentlyOnMap))
-      allowed |= !WorldRendererUtility.WorldRenderedNow && Find.CurrentMap != null;
+      allowed |= !WorldRendererUtility.WorldRendered && Find.CurrentMap != null;
 
     if (allowedGameStates.HasFlag(AllowedGameStates.WorldRenderedNow))
-      allowed |= WorldRendererUtility.WorldRenderedNow;
+      allowed |= WorldRendererUtility.WorldRendered;
 
     if (allowedGameStates.HasFlag(AllowedGameStates.HasGameCondition))
-      allowed |= !WorldRendererUtility.WorldRenderedNow && Find.CurrentMap != null &&
+      allowed |= !WorldRendererUtility.WorldRendered && Find.CurrentMap != null &&
         Find.CurrentMap.gameConditionManager.ActiveConditions.Count > 0;
 
     return allowed;
@@ -224,6 +227,8 @@ internal class BenchmarkManager : IDevTool
       this.allowedGameStates = classAttr.AllowedGameStates;
     }
 
+    public MetaDataContainer MetaData { get; } = new();
+
     public void AddFromType(Type type)
     {
       BenchmarkClassAttribute classAttr = type.TryGetAttribute<BenchmarkClassAttribute>();
@@ -249,7 +254,7 @@ internal class BenchmarkManager : IDevTool
           }
           tests.Add((type, benchmarkAttr.Label ?? method.Name, method));
         }
-        else if (method.TryGetAttribute<SetUpAttribute>() is not null)
+        else if (method.TryGetAttribute<PrepareAttribute>() is not null)
         {
           if (!MethodIsSafe(method, out string reason))
           {

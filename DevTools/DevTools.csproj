@@ -18,8 +18,8 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\..\1.5\Assemblies\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <OutputPath>..\..\1.6\Assemblies\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -28,21 +28,31 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>..\..\1.5\Assemblies\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <OutputPath>..\..\1.6\Assemblies\</OutputPath>
+    <DefineConstants>TRACE;UNITY_ASSERTIONS;</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
-    <OutputPath>..\..\1.5\Assemblies\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <OutputPath>..\..\1.6\Assemblies\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'UnitTest|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>..\..\1.6\Assemblies\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>CS0649</NoWarn>
+    <DebugType>portable</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>preview</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="0Harmony, Version=2.3.5.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\Source\Vehicles\packages\Lib.Harmony.2.3.5\lib\net48\0Harmony.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="0Harmony, Version=2.3.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\Source\Vehicles\packages\Lib.Harmony.2.3.3\lib\net48\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath>
@@ -58,6 +68,10 @@
     <Reference Include="System.Xml" />
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
@@ -78,30 +92,46 @@
     <Compile Include="Benchmarking\Attributes\BenchmarkClassAttribute.cs" />
     <Compile Include="Benchmarking\Attributes\ContextAttribute.cs" />
     <Compile Include="Benchmarking\Attributes\OnFinishAttribute.cs" />
-    <Compile Include="Benchmarking\Attributes\PartitionAttribute.cs" />
     <Compile Include="Benchmarking\Attributes\SampleSizeAttribute.cs" />
-    <Compile Include="Benchmarking\Attributes\SetUpAttribute.cs" />
+    <Compile Include="Benchmarking\Attributes\PrepareAttribute.cs" />
     <Compile Include="Benchmarking\Benchmark.cs" />
     <Compile Include="Benchmarking\BenchmarkManager.cs" />
     <Compile Include="CoroutineObject.cs" />
-    <Compile Include="Debugging\Assert.cs" />
-    <Compile Include="Debugging\AssertFailException.cs" />
-    <Compile Include="Debugging\Debug.cs" />
+    <Compile Include="Debugging\StackTraceCacheDisabler.cs" />
     <Compile Include="DevItem.cs" />
     <Compile Include="IDevTool.cs" />
-    <Compile Include="ModalWindow.cs" />
-    <Compile Include="Debugging\StackTracePopup.cs" />
+    <Compile Include="IMetaData.cs" />
+    <Compile Include="MetaDataName.cs" />
+    <Compile Include="MetaDataContainer.cs" />
+    <Compile Include="UI\DataTable.cs" />
+    <Compile Include="UI\IDataColumn.cs" />
+    <Compile Include="UI\IDataRow.cs" />
+    <Compile Include="UI\ISelectable.cs" />
+    <Compile Include="UnitTesting\Attributes\LoadSaveAttribute.cs" />
+    <Compile Include="UnitTesting\Attributes\TestCategoryAttribute.cs" />
+    <Compile Include="UnitTesting\Attributes\TestDescriptionAttribute.cs" />
+    <Compile Include="UnitTesting\Attributes\TestTraitAttribute.cs" />
+    <Compile Include="UnitTesting\ContextGroup.cs" />
+    <Compile Include="UnitTesting\TestExplorer\ITestCase.cs" />
+    <Compile Include="UI\ModalWindow.cs" />
     <Compile Include="DevHarmony.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UI\EmbeddedResourceLoader.cs" />
+    <Compile Include="UI\Utils.cs" />
     <Compile Include="UnitTesting\Result.cs" />
+    <Compile Include="UnitTesting\StatusCount.cs" />
     <Compile Include="UnitTesting\Test.cs" />
+    <Compile Include="UnitTesting\TestExplorer\ExplorerColumn.cs" />
+    <Compile Include="UI\SelectionManager.cs" />
+    <Compile Include="UnitTesting\TestExplorer\TestSelector.cs" />
+    <Compile Include="UnitTesting\TestResult.cs" />
     <Compile Include="UnitTesting\UnitTestAsyncHandler.cs" />
     <Compile Include="UnitTesting\UnitTestGroup.cs" />
-    <Compile Include="UnitTesting\Attributes\CleanUpAttribute.cs" />
-    <Compile Include="UnitTesting\Attributes\PrepareAttribute.cs" />
+    <Compile Include="UnitTesting\Attributes\TearDownAttribute.cs" />
+    <Compile Include="UnitTesting\Attributes\SetUpAttribute.cs" />
     <Compile Include="UnitTesting\Attributes\ExecutionPriorityAttribute.cs" />
     <Compile Include="UnitTesting\Attributes\UnitTestAttribute.cs" />
-    <Compile Include="UnitTesting\Dialog_TestExplorer.cs" />
+    <Compile Include="UnitTesting\TestExplorer\Dialog_TestExplorer.cs" />
     <Compile Include="UnitTesting\Priority.cs" />
     <Compile Include="UnitTesting\Expect.cs" />
     <Compile Include="UnitTesting\GenerationTemplate.cs" />
@@ -113,6 +143,11 @@
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <EmbeddedResource Include="Images/Icon_TestPassed.png" />
+    <EmbeddedResource Include="Images/Icon_TestFailed.png" />
+    <EmbeddedResource Include="Images/Icon_TestRunning.png" />
+    <EmbeddedResource Include="Images/Icon_TestCanceled.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

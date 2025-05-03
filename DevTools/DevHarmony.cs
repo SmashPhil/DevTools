@@ -31,7 +31,6 @@ internal static class DevHarmony
   private static T CreateDevTool<T>() where T : IDevTool, new()
   {
     T tool = new();
-
     return tool;
   }
 

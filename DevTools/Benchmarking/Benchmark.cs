@@ -243,7 +243,7 @@ public static class Benchmark
     return new Result(watch, iterations, measurement);
   }
 
-  private static string MeasurementSuffix(Measurement measurement)
+  public static string MeasurementSuffix(Measurement measurement)
   {
     return measurement switch
     {
@@ -266,14 +266,19 @@ public static class Benchmark
   [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
   public readonly record struct Result
   {
+    private readonly int decimalPlaces;
+
     public readonly Measurement measurement;
     public readonly int iterations;
 
     public readonly double total;
     public readonly double mean;
 
-    public Result(Stopwatch stopwatch, int iterations, Measurement measurement)
+    public Result(Stopwatch stopwatch, int iterations, Measurement measurement,
+      int decimalPlaces = 4)
     {
+      this.decimalPlaces = decimalPlaces;
+
       this.measurement = measurement;
       this.iterations = iterations;
 
@@ -287,9 +292,15 @@ public static class Benchmark
       mean = total / iterations;
     }
 
-    public string TotalString => $"{total:0.####} {MeasurementSuffix(measurement)}";
+    public string TotalString => NumberFormatted(total);
 
-    public string MeanString => $"{mean:0.####} {MeasurementSuffix(measurement)}";
+    public string MeanString => NumberFormatted(mean);
+
+    private string NumberFormatted(double value)
+    {
+      return
+        $"{value.ToString($"0.{new string('#', decimalPlaces)}")} {MeasurementSuffix(measurement)}";
+    }
 
     public override string ToString()
     {

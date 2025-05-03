@@ -1,44 +1,95 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 using System.Reflection;
 using System.Threading;
+using DevTools.Benchmarking;
+using UnityEngine;
+using UnityEngine.Assertions;
 using Verse;
-using NullReferenceException = System.NullReferenceException;
 
 namespace DevTools.UnitTesting;
 
-internal class UnitTestGroup
+internal class UnitTestGroup : ITestCase, IDataRow<ExplorerColumn>
 {
-  private readonly List<Method> prepares = [];
-  private readonly List<Method> cleanUps = [];
+  private readonly List<Method> setUps = [];
+  private readonly List<Method> tests = [];
+  private readonly List<Method> tearDowns = [];
 
-  internal readonly List<Method> tests = [];
+  private readonly Stopwatch groupTimer = new();
 
-  public UnitTestGroup(string category, TestType type, bool runAsync)
+  private string failMessageInt;
+
+  private readonly Dictionary<Type, object> instanceByType = [];
+
+  public UnitTestGroup(string alias, TestType type)
   {
-    Category = category;
+    Alias = alias;
     Type = type;
-    RunAsync = runAsync;
   }
 
-  public string Category { get; }
+  public string Alias { get; }
+
+  public MetaDataContainer MetaData { get; } = new();
 
   public TestType Type { get; }
 
-  public bool RunAsync { get; }
+  public Benchmark.Result Duration { get; private set; }
 
-  public Status Result { get; private set; }
+  public Status Status { get; private set; } = Status.NotRun;
 
-  public string FailMessage { get; private set; }
+  public string FailLabel { get; private set; }
+
+  public string FailMessage
+  {
+    get { return failMessageInt; }
+    private set
+    {
+      failMessageInt = value;
+      if (FailMessage == null)
+      {
+        FailLabel = null;
+      }
+      else
+      {
+        int newlineIdx =
+          FailMessage.IndexOf(Environment.NewLine, StringComparison.InvariantCulture);
+        FailLabel = newlineIdx < 0 ?
+          FailMessage :
+          FailMessage.Substring(0, newlineIdx);
+      }
+    }
+  }
+
+  public int TestCount => tests.Count;
+
+  string ITestCase.Name => TestCount > 1 ? $"{Alias} ({TestCount})" : Alias;
+
+  float IDataRow<ExplorerColumn>.Height => ExplorerColumn.LineHeight;
+
+  bool IDataRow<ExplorerColumn>.CanExpand =>
+    TestCount > 1 || (TestCount == 1 && tests[0].Root?.Groups.Count > 1);
+
+  bool IDataRow<ExplorerColumn>.Expanded { get; set; }
+
+  IEnumerable<IDataRow<ExplorerColumn>> IDataRow<ExplorerColumn>.NestedRows
+  {
+    get
+    {
+      foreach (Method method in tests)
+        yield return method;
+    }
+  }
 
   private static bool ExecutingOn(TestType type)
   {
     return type switch
     {
-      TestType.MainMenu => Current.ProgramState == ProgramState.Entry,
-      TestType.Playing  => Current.ProgramState == ProgramState.Playing,
-      _                 => false,
+      TestType.MainMenu     => Current.ProgramState == ProgramState.Entry,
+      TestType.Playing      => Current.ProgramState == ProgramState.Playing,
+      TestType.PostGameExit => Current.ProgramState == ProgramState.Entry,
+      TestType.Disabled     => false,
+      _                     => throw new NotImplementedException(nameof(TestType))
     };
   }
 
@@ -46,22 +97,30 @@ internal class UnitTestGroup
   {
     FailMessage = null;
     Assert.IsTrue(ExecutingOn(Type),
-      $"Executing unit test {Category} on wrong TestType.");
+      $"Executing unit test {Alias} on wrong TestType {Type}.");
 
-    using Assert.ThrowOnAssertEnabler te = new();
+    if (TestCount == 0)
+    {
+      Status = Status.Skipped;
+      return;
+    }
 
-    Result = Status.Pending;
+    using StackTraceCacheDisabler stcd = new();
 
+    Status = Status.Pending;
+    groupTimer.Restart();
     Status finalStatus = Status.Passed;
     try
     {
       if (token.IsCancellationRequested)
         return;
 
-      // Prepare
-      foreach (Method method in prepares)
+      Test.Log($"----------  Running {Alias}");
+      // Set Up
+      foreach (Method method in setUps)
       {
         method.Execute(out string failMessage);
+
         if (method.Status < finalStatus)
           finalStatus = method.Status;
         if (method.Status == Status.Failed)
@@ -74,7 +133,7 @@ internal class UnitTestGroup
         }
       }
 
-      // If Prepare has any other status except passed, skip testing. There is a good chance
+      // If SetUp has any other status except passed, skip testing. There is a good chance
       // the tests will be invalid.
       if (finalStatus == Status.Passed)
       {
@@ -85,6 +144,7 @@ internal class UnitTestGroup
             continue;
 
           method.Execute(out string failMessage);
+
           if (method.Status < finalStatus)
             finalStatus = method.Status;
           if (method.Status == Status.Failed)
@@ -94,10 +154,11 @@ internal class UnitTestGroup
         }
       }
 
-      // Clean Up
-      foreach (Method method in cleanUps)
+      // Tear Down
+      foreach (Method method in tearDowns)
       {
         method.Execute(out string failMessage);
+
         if (method.Status < finalStatus)
           finalStatus = method.Status;
         if (method.Status == Status.Failed)
@@ -106,7 +167,9 @@ internal class UnitTestGroup
     }
     finally
     {
-      Result = token.IsCancellationRequested ? Status.Canceled : finalStatus;
+      groupTimer.Stop();
+      Duration = new Benchmark.Result(groupTimer, 1, Benchmark.Measurement.Milliseconds);
+      Status = token.IsCancellationRequested ? Status.Canceled : finalStatus;
     }
   }
 
@@ -115,13 +178,13 @@ internal class UnitTestGroup
     foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
       BindingFlags.Static | BindingFlags.Instance))
     {
-      TryAddMethod<PrepareAttribute>(type, method, Method.MethodType.Prepare, prepares);
+      TryAddMethod<SetUpAttribute>(type, method, Method.MethodType.SetUp, setUps);
       TryAddMethod<TestAttribute>(type, method, Method.MethodType.Test, tests);
-      TryAddMethod<CleanUpAttribute>(type, method, Method.MethodType.CleanUp, cleanUps);
+      TryAddMethod<TearDownAttribute>(type, method, Method.MethodType.TearDown, tearDowns);
     }
     return;
 
-    static void TryAddMethod<T>(Type declaringType, MethodInfo methodInfo,
+    void TryAddMethod<T>(Type declaringType, MethodInfo methodInfo,
       Method.MethodType methodType,
       List<Method> methodList) where T : Attribute
     {
@@ -132,16 +195,34 @@ internal class UnitTestGroup
           Log.Error($"Unable to add {methodInfo.Name} to unit test. {reason}");
           return;
         }
-        methodList.Add(new Method(declaringType, methodInfo, methodType));
+        object instance = null;
+        // Static types are both abstract and sealed
+        if (declaringType.IsAbstract)
+        {
+          // Only static types should be getting added as a unit test method if the type
+          // is abstract, otherwise we wouldn't be able to invoke the method.
+          Assert.IsTrue(declaringType.IsSealed);
+        }
+        else
+        {
+          if (!instanceByType.TryGetValue(declaringType, out instance))
+          {
+            instance = Activator.CreateInstance(declaringType);
+            instanceByType[declaringType] = instance;
+          }
+        }
+        Method method = new(instance, methodInfo, methodType);
+        method.MetaData.Load(methodInfo);
+        methodList.Add(method);
       }
     }
   }
 
   public void SortByExecutionPriority()
   {
-    prepares.Sort();
+    setUps.Sort();
     tests.Sort();
-    cleanUps.Sort();
+    tearDowns.Sort();
   }
 
   private static bool MethodIsSafe(MethodInfo method, out string reason)
@@ -161,75 +242,107 @@ internal class UnitTestGroup
     return true;
   }
 
-  public class Method : IComparable<Method>
+  public void TestOutcomes(StatusCount statusCount)
+  {
+    foreach (Method method in setUps)
+      method.TestOutcomes(statusCount);
+    foreach (Method method in tests)
+      method.TestOutcomes(statusCount);
+    foreach (Method method in tearDowns)
+      method.TestOutcomes(statusCount);
+  }
+
+  void IDataRow<ExplorerColumn>.Draw(Rect rect, ExplorerColumn column)
+  {
+    column.Draw(rect, this);
+  }
+
+  public class Method : IComparable<Method>, ITestCase, IDataRow<ExplorerColumn>
   {
     private static readonly object[] emptyArgs = [];
 
     private readonly object instance;
     private readonly MethodInfo method;
 
-    public Method(Type declaringType, MethodInfo method, MethodType methodType)
+    public Method(object instance, MethodInfo method, MethodType methodType)
     {
+      this.instance = instance;
       this.method = method;
       Type = methodType;
-
-      // Static type
-      if (declaringType.IsAbstract)
-      {
-        // Only static types should be getting added as a unit test method if the type
-        // is abstract, otherwise we wouldn't be able to invoke the method.
-        Assert.IsTrue(declaringType.IsSealed);
-        return;
-      }
-      instance = Activator.CreateInstance(declaringType);
     }
 
-    private MethodType Type { get; }
+    public MethodType Type { get; }
 
-    public Status Status { get; private set; }
+    public MetaDataContainer MetaData { get; } = new();
 
-    public string ExtraInfo { get; private set; }
+    public ContextGroup Root { get; private set; } = new(null);
 
-    private List<(string name, Status status)> ResultList { get; } = [];
+    public Dictionary<string, string> Traits => Root.Traits;
+
+    public Status Status => Root.Status;
+
+    public string FailLabel => Root.FailLabel;
+    public string FailMessage => Root.FailMessage;
+
+    public Benchmark.Result Duration => Root.Duration;
 
     public string Name => method.Name;
 
-    public void Execute(out string failMessage)
+    public int TestCount => Root.TestCount;
+
+    bool IDataRow<ExplorerColumn>.CanExpand => Root.CanExpand;
+
+    bool IDataRow<ExplorerColumn>.Expanded { get; set; }
+
+    float IDataRow<ExplorerColumn>.Height => ExplorerColumn.LineHeight;
+
+    IEnumerable<IDataRow<ExplorerColumn>> IDataRow<ExplorerColumn>.NestedRows
     {
-      failMessage = null;
-      try
+      get
       {
-        ResultList.Clear();
-        using (new Expect.TestWatcher(ResultList))
+        if (Root.Groups.Count > 1)
         {
-          method.Invoke(instance, emptyArgs);
-        }
-        Status = Status.Passed;
-        foreach ((string name, Status status) in ResultList)
-        {
-          if (status is Status.Failed)
-          {
-            Status = status;
-            break;
-          }
-          if (status is Status.Canceled or Status.Skipped)
-          {
-            // Reason for skip or cancellation will be in the attached label
-            ExtraInfo = name;
-            Status = status;
-            break;
-          }
+          foreach (ContextGroup group in Root.Groups)
+            yield return group;
         }
       }
-      catch (AssertFailException ex)
+    }
+
+    public void Execute(out string failMessage)
+    {
+      Test.Log($"Executing {Type}::{Name}");
+      Root.Reset();
+      failMessage = null;
+
+      // Empty group to capture test results at the root level
+      using Test.Group group = new(null);
+      Root = Test.CurrentGroup;
+      Root.TestCase = this;
+      try
       {
-        failMessage = $"[{Type}::{method.Name}] Assertion failed!\n{ex}";
-        Status = Status.Failed;
+        method.Invoke(instance, emptyArgs);
+        ContextGroup.TabulateTestResultsRecursive(Root);
+      }
+      catch (TargetInvocationException ex) when (ex.InnerException is AssertionException)
+      {
+        Test.Log(ex.InnerException.ToString());
+        Test.CurrentGroup.FailMessage = ex.InnerException.Message;
+        Test.CurrentGroup.StackTrace = ex.InnerException.StackTrace;
+        Test.CurrentGroup.Exception = ex.InnerException;
+        Test.CurrentGroup.Status = Status.Failed;
       }
       catch (Exception ex)
       {
-        failMessage = $"[{Type}::{method.Name}] Exception thrown!\n{ex}";
-        Status = Status.Failed;
+        Test.Log(ex.ToString());
+        Test.CurrentGroup.FailMessage =
+          $"{ex.InnerException?.GetType().Name ?? ex.GetType().Name} thrown.";
+        Test.CurrentGroup.StackTrace = ex.InnerException?.StackTrace ?? ex.StackTrace;
+        Test.CurrentGroup.Exception = ex;
+        Test.CurrentGroup.Status = Status.Failed;
+      }
+      finally
+      {
+        failMessage = Test.CurrentGroup.FailMessage;
       }
     }
 
@@ -240,23 +353,32 @@ internal class UnitTestGroup
       if (other is null)
         throw new NullReferenceException();
 
-      ExecutionPriorityAttribute lhsAttr = method.TryGetAttribute<ExecutionPriorityAttribute>();
-      ExecutionPriorityAttribute rhsAttr = other.method.TryGetAttribute<ExecutionPriorityAttribute>();
-      int lhsInt = lhsAttr?.Priority ?? 0;
-      int rhsInt = rhsAttr?.Priority ?? 0;
+      int lhsInt = MetaData.Get<int>(MetaDataName.ExecutionPriority);
+      int rhsInt = other.MetaData.Get<int>(MetaDataName.ExecutionPriority);
 
+      // Higher priority => earlier in the list
       if (lhsInt == rhsInt)
         return 0;
-      if (lhsInt < rhsInt)
-        return -1;
-      return 1;
+      if (lhsInt > rhsInt)
+        return 1;
+      return -1;
+    }
+
+    public void TestOutcomes(StatusCount statusCount)
+    {
+      Root?.TestOutcomes(statusCount);
+    }
+
+    void IDataRow<ExplorerColumn>.Draw(Rect rect, ExplorerColumn column)
+    {
+      column.Draw(rect, this);
     }
 
     internal enum MethodType
     {
-      Prepare,
+      SetUp,
       Test,
-      CleanUp,
+      TearDown,
     }
   }
 }

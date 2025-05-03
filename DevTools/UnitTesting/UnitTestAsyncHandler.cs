@@ -5,6 +5,7 @@ using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.SceneManagement;
 using Verse;
 using Verse.Profile;
@@ -184,11 +185,12 @@ internal static class UnitTestAsyncHandler
 
     Current.Game.World = WorldGenerator.GenerateWorld(template.world.percent,
       GenText.RandomSeedString(),
-      template.world.rainfall, template.world.temperature, template.world.population);
+      template.world.rainfall, template.world.temperature, template.world.population,
+      template.world.landmarkDensity);
     Find.GameInitData.ChooseRandomStartingTile();
     if (template.map?.biome != null)
     {
-      Find.WorldGrid[Find.GameInitData.startingTile].biome = template.map.biome;
+      Find.WorldGrid[Find.GameInitData.startingTile].PrimaryBiome = template.map.biome;
     }
 
     Find.Scenario.PostIdeoChosen();
