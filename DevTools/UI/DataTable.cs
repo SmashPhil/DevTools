@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using RimWorld;
 using UnityEngine;
@@ -12,7 +13,7 @@ public class DataTable<C, R> where C : class, IDataColumn
                              where R : class, IDataRow<C>
 
 {
-  private const float SeparatorPadding = 5;
+  private const float SeparatorPadding = 25;
   private const float SeparatorSize = 1;
   private const float PadLeftRight = (SeparatorPadding - SeparatorSize) / 2f;
 
@@ -34,9 +35,9 @@ public class DataTable<C, R> where C : class, IDataColumn
 
   public bool CanExpandItems { get; set; } = true;
 
-  private float Height { get; set; }
+  private float Height { get; set; } = -1;
 
-  public SelectionManager Selector { get; private set; }
+  public SelectionManager<R> Selector { get; private set; }
 
   public void RecacheHeight()
   {
@@ -44,22 +45,24 @@ public class DataTable<C, R> where C : class, IDataColumn
     Height = GetHeightRecursive(rows);
     return;
 
-    static float GetHeightRecursive(IEnumerable<IDataRow<C>> rows)
+    static float GetHeightRecursive(IEnumerable<R> rows)
     {
       float height = 0;
-      foreach (IDataRow<C> row in rows)
+      foreach (R row in rows)
       {
+        if (row.ShouldHide)
+          continue;
         height += row.Height;
         if (row is { CanExpand: true, Expanded: true })
         {
-          height += GetHeightRecursive(row.NestedRows);
+          height += GetHeightRecursive(row.NestedRows.Cast<R>());
         }
       }
       return height;
     }
   }
 
-  public void SetSelector(SelectionManager selectionManager)
+  public void SetSelector(SelectionManager<R> selectionManager)
   {
     Selector = selectionManager;
   }
@@ -76,8 +79,16 @@ public class DataTable<C, R> where C : class, IDataColumn
     this.columns.AddRange(columns);
   }
 
+  public void AddColumn(C column)
+  {
+    this.columns.Add(column);
+  }
+
   public void DrawTable(Rect inRect)
   {
+    if (Height < 0)
+      RecacheHeight();
+
     Widgets.BeginGroup(inRect);
     float curX = 0;
     Rect headerRect;
@@ -87,17 +98,17 @@ public class DataTable<C, R> where C : class, IDataColumn
       foreach (C column in columns)
       {
         using TextBlock alignmentBlock = new(column.HeaderAnchor);
-        headerRect = headerRect with { x = curX, width = column.Width - PadLeftRight };
-        Widgets.Label(headerRect, column.Name);
-        Utils.VerticalSeparator(headerRect.xMax, headerRect.yMin, headerRect.height,
+        headerRect = headerRect with { x = curX, width = column.Width };
+        Widgets.Label(headerRect.ContractedBy(PadLeftRight, 0), column.Name);
+        WidgetUtils.VerticalSeparator(headerRect.xMax, headerRect.yMin, headerRect.height,
           size: SeparatorSize);
-        curX = headerRect.xMax + SeparatorPadding - SeparatorSize;
+        curX = headerRect.xMax;
       }
     }
     Widgets.EndGroup();
 
     float listerY = inRect.y + headerRect.height;
-    Utils.HorizontalSeparator(inRect.x, listerY, inRect.width);
+    WidgetUtils.HorizontalSeparator(inRect.x, listerY, inRect.width);
 
     Rect outRect = inRect with { yMin = listerY + 1 };
     Rect viewRect = outRect.AtZero() with { width = outRect.width - 16, height = Height };
@@ -112,19 +123,20 @@ public class DataTable<C, R> where C : class, IDataColumn
 
     // If click event hasn't been used by this point, clear selection
     if (Event.current.type == EventType.MouseUp)
-      Selector.Clear();
+      Selector?.Clear();
   }
 
   private void DrawRows(Rect viewRect, ref float curX, ref float curY,
-    IEnumerable<IDataRow<C>> rows,
-    IEnumerable<C> columns)
+    IEnumerable<R> rows, IEnumerable<C> columns)
   {
     // ReSharper disable PossibleMultipleEnumeration
 
     const float ExpandBtnSize = 20;
 
-    foreach (IDataRow<C> row in rows)
+    foreach (R row in rows)
     {
+      if (row.ShouldHide)
+        continue;
       Rect expandBtnRect =
         new Rect(curX, curY, row.Height, row.Height).ContractedBy((row.Height - ExpandBtnSize) / 2);
       Rect rowRect = new(0, curY, viewRect.width, row.Height);
@@ -133,11 +145,11 @@ public class DataTable<C, R> where C : class, IDataColumn
       foreach (C column in columns)
       {
         using TextBlock alignmentBlock = new(column.Anchor);
-        Rect cellRect = rowRect with { x = cellX, width = column.Width - PadLeftRight };
+        Rect cellRect = rowRect with { x = cellX, width = column.Width };
         if (indent > 0)
           cellRect.xMin += indent;
-        row.Draw(cellRect, column);
-        cellX = cellRect.xMax + SeparatorPadding - SeparatorSize;
+        row.Draw(cellRect.ContractedBy(PadLeftRight, 0), column);
+        cellX = cellRect.xMax;
         indent = 0; // Quickest way to remove indent beyond first column
       }
 
@@ -158,12 +170,12 @@ public class DataTable<C, R> where C : class, IDataColumn
         if (expanded)
         {
           curX += Indent;
-          DrawRows(viewRect, ref curX, ref curY, row.NestedRows, columns);
+          DrawRows(viewRect, ref curX, ref curY, row.NestedRows.Cast<R>(), columns);
           curX -= Indent;
         }
       }
-      Selector.HandleClicks(rowRect, row);
-      if (Selector.IsSelected(row))
+      Selector?.HandleClicks(rowRect, row);
+      if (Selector != null && Selector.IsSelected(row))
         Widgets.DrawBoxSolid(rowRect, backgroundLightColor);
     }
   }

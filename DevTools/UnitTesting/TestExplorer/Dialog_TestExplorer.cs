@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using RimWorld;
@@ -8,7 +6,6 @@ using UnityEngine;
 using UnityEngine.Assertions;
 using Verse;
 using Verse.Sound;
-using Method = DevTools.UnitTesting.UnitTestGroup.Method;
 
 namespace DevTools.UnitTesting;
 
@@ -24,8 +21,8 @@ internal sealed class Dialog_TestExplorer : Window
     (UI.screenHeight - dialogSize.y) / 2f, dialogSize.x, dialogSize.y);
 
   private readonly UnitTestManager unitTestManager;
-  private readonly List<UnitTestGroup> testGroups;
-  private readonly DataTable<ExplorerColumn, IDataRow<ExplorerColumn>> table = new();
+  private readonly List<UnitTestGroup> testGroups = [];
+  private readonly DataTable<ExplorerColumn, ITestCase> table = new();
 
   private readonly StringBuilder summaryBuilder = new();
 
@@ -33,10 +30,9 @@ internal sealed class Dialog_TestExplorer : Window
   private float startingWidth;
   private float paneWidth = TestColumnWidth;
 
-  public Dialog_TestExplorer(UnitTestManager unitTestManager, List<UnitTestGroup> testGroups)
+  public Dialog_TestExplorer(UnitTestManager unitTestManager)
   {
     this.unitTestManager = unitTestManager;
-    this.testGroups = testGroups;
     SetWindowProperties();
   }
 
@@ -47,6 +43,12 @@ internal sealed class Dialog_TestExplorer : Window
   public override bool IsDebug => true;
 
   protected override float Margin => 0;
+
+  private void RefreshTestList()
+  {
+    testGroups.Clear();
+    testGroups.AddRange(unitTestManager.UnitTests.OrderBy(group => group.Name));
+  }
 
   private void SetWindowProperties()
   {
@@ -62,6 +64,7 @@ internal sealed class Dialog_TestExplorer : Window
   public override void PreOpen()
   {
     base.PreOpen();
+    RefreshTestList();
     table.SetColumns(
       new ExplorerColumn(ExplorerColumn.Type.Tests, TestColumnWidth),
       new ExplorerColumn(ExplorerColumn.Type.Duration, 150) { Anchor = TextAnchor.MiddleRight },
@@ -112,33 +115,59 @@ internal sealed class Dialog_TestExplorer : Window
 
   private void DrawHeaderButtons(Rect rect)
   {
+    const string RunName = "Run All";
+    const string RunFailedName = "Run Failed Tests";
+    const string RunNotRunName = "Run Not Run Tests";
+    const string RunPassedName = "Run Passed Tests";
+    const string RunTillFailName = "Run Until Failure";
+    const string ClearAllName = "Clear All Test Results";
+
     Rect buttonRect = (rect with { size = new Vector2(BtnSize, BtnSize) }).ContractedBy(3);
     if (Widgets.ButtonImage(buttonRect, TexButton.SpeedButtonTextures[2], Color.green,
-      tooltip: "Run Plan"))
+      tooltip: RunName))
     {
       SoundDefOf.Click.PlayOneShotOnCamera();
-      if (!unitTestManager.TestPlans.NullOrEmpty())
-      {
-        List<FloatMenuOption> options = [];
-        foreach (TestPlan testPlan in unitTestManager.TestPlans)
-        {
-          options.Add(new FloatMenuOption(testPlan.name,
-            delegate { unitTestManager.RunPlan(testPlan); }));
-        }
-        Find.WindowStack.Add(new FloatMenu(options));
-      }
+      unitTestManager.RunAll();
     }
     buttonRect.x += buttonRect.width;
     if (Widgets.ButtonImage(buttonRect, TexButton.SpeedButtonTextures[1], Color.green,
-      tooltip: "Run"))
+      tooltip: RunName))
     {
+      List<FloatMenuOption> options =
+      [
+        new(RunName, unitTestManager.RunAll),
+        new(RunFailedName,
+          () => unitTestManager
+           .GetRunnerWith<StatusExpression>(Expression.Comparison.Equals, nameof(Status.Failed))
+           .Run()),
+        new(RunNotRunName,
+          () => unitTestManager
+           .GetRunnerWith<StatusExpression>(Expression.Comparison.Equals, nameof(Status.NotRun))
+           .Run()),
+        new(RunPassedName,
+          () => unitTestManager
+           .GetRunnerWith<StatusExpression>(Expression.Comparison.Equals, nameof(Status.Passed))
+           .Run()),
+        new(RunTillFailName,
+          delegate
+          {
+            TestRunner runner = new(unitTestManager);
+            // Entire group can fail if exception was thrown
+            runner.AddStopCondition((ITestGroup group) => group.Status == Status.Failed);
+            runner.AddStopCondition((ITestFunction function) => function.Status == Status.Failed);
+            runner.Run();
+          }),
+        new(ClearAllName, unitTestManager.ClearTestResults),
+      ];
+      Find.WindowStack.Add(new FloatMenu(options));
+
       SoundDefOf.Click.PlayOneShotOnCamera();
     }
   }
 
   private void DrawInfoPanel(Rect inRect)
   {
-    Utils.VerticalSeparator(inRect.x, inRect.y, inRect.height);
+    WidgetUtils.VerticalSeparator(inRect.x, inRect.y, inRect.height);
 
     Widgets.BeginGroup(inRect);
     inRect = inRect.AtZero().ContractedBy(5);
@@ -161,7 +190,7 @@ internal sealed class Dialog_TestExplorer : Window
       Widgets.TextArea(inRect, Summary, readOnly: true);
       if (Widgets.ButtonText(bottomRect, "Open Log"))
       {
-        Test.OpenLogFile();
+        unitTestManager.OpenLogFile();
       }
     }
     Widgets.EndGroup();
@@ -210,22 +239,23 @@ internal sealed class Dialog_TestExplorer : Window
     {
       Assert.IsTrue(summaryBuilder.Length == 0);
 
+      ITestCase singleSelected = table.Selector.selected.FirstOrDefault();
+      Assert.IsNotNull(singleSelected);
       if (table.Selector.selected.Count == 1)
-      {
-        ISelectable selectable = table.Selector.selected.First();
-        ITestCase testCase = (ITestCase)selectable;
-        summaryBuilder.AppendLine(testCase.Name);
-      }
+        summaryBuilder.AppendLine(singleSelected.Name);
       StatusCount count = new();
-      foreach (ISelectable selectable in table.Selector.selected)
+      foreach (ITestCase testCase in table.Selector.selected)
       {
-        ITestCase testCase = (ITestCase)selectable;
         testCase.TestOutcomes(count);
       }
       summaryBuilder.AppendLine($"    Tests in group: {count.Total}");
       summaryBuilder.AppendLine();
       summaryBuilder.AppendLine("Outcomes");
       AppendOutcomeSummary(count, summaryBuilder);
+
+      if (table.Selector.selected.Count == 1)
+        summaryBuilder.AppendLine(singleSelected.FailMessage);
+
       Summary = summaryBuilder.ToString();
     }
     finally
@@ -237,9 +267,9 @@ internal sealed class Dialog_TestExplorer : Window
   private static void AppendOutcomeSummary(StatusCount statusCount, StringBuilder summaryBuilder)
   {
     summaryBuilder.AppendLine(
-      $"    {statusCount[Method.MethodType.Test, Status.Passed]} Passed");
+      $"    {statusCount[MethodType.Test, Status.Passed]} Passed");
     summaryBuilder.AppendLine(
-      $"    {statusCount[Method.MethodType.Test, Status.Failed]} Failed");
+      $"    {statusCount[MethodType.Test, Status.Failed]} Failed");
     if (statusCount.AssertFailCount > 0)
       summaryBuilder.AppendLine(
         $"    {statusCount.AssertFailCount} Assert Failed");
@@ -247,23 +277,23 @@ internal sealed class Dialog_TestExplorer : Window
       summaryBuilder.AppendLine(
         $"    {statusCount.ExceptionCount} Exception Thrown");
 
-    int prepareFailed = statusCount[Method.MethodType.SetUp, Status.Failed];
+    int prepareFailed = statusCount[MethodType.SetUp, Status.Failed];
     if (prepareFailed > 0)
       summaryBuilder.AppendLine($"    {prepareFailed} SetUp Failed");
-    int prepareCanceled = statusCount[Method.MethodType.SetUp, Status.Canceled];
+    int prepareCanceled = statusCount[MethodType.SetUp, Status.Canceled];
     if (prepareCanceled > 0)
       summaryBuilder.AppendLine($"    {prepareCanceled} SetUp Canceled");
-    int prepareSkipped = statusCount[Method.MethodType.SetUp, Status.Skipped];
+    int prepareSkipped = statusCount[MethodType.SetUp, Status.Skipped];
     if (prepareSkipped > 0)
       summaryBuilder.AppendLine($"    {prepareSkipped} SetUp Skipped");
 
-    int cleanUpFailed = statusCount[Method.MethodType.TearDown, Status.Failed];
+    int cleanUpFailed = statusCount[MethodType.TearDown, Status.Failed];
     if (cleanUpFailed > 0)
       summaryBuilder.AppendLine($"    {cleanUpFailed} TearDown Failed");
-    int cleanUpCanceled = statusCount[Method.MethodType.TearDown, Status.Canceled];
+    int cleanUpCanceled = statusCount[MethodType.TearDown, Status.Canceled];
     if (cleanUpCanceled > 0)
       summaryBuilder.AppendLine($"    {cleanUpCanceled} TearDown Canceled");
-    int cleanUpSkipped = statusCount[Method.MethodType.TearDown, Status.Skipped];
+    int cleanUpSkipped = statusCount[MethodType.TearDown, Status.Skipped];
     if (cleanUpSkipped > 0)
       summaryBuilder.AppendLine($"    {cleanUpSkipped} TearDown Skipped");
   }

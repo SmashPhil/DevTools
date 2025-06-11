@@ -1,16 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+using JetBrains.Annotations;
 
 namespace DevTools;
 
-internal class MetaDataContainer
+[PublicAPI]
+public class MetaDataContainer
 {
   private readonly Dictionary<int, object> metaDataLookup = [];
 
   public T Get<T>(int key, T fallback = default)
   {
     return metaDataLookup.TryGetValue(key, out object value) ? (T)value : fallback;
+  }
+
+  public object GetRaw(int key)
+  {
+    return metaDataLookup.TryGetValue(key, out object value) ? value : null;
   }
 
   public void Load(MemberInfo memberInfo)

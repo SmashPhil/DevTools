@@ -3,12 +3,9 @@
 namespace DevTools.Benchmarking;
 
 [AttributeUsage(AttributeTargets.Class)]
-public class SampleSizeAttribute : Attribute
+public class SampleSizeAttribute : MetaDataAttribute
 {
-  public SampleSizeAttribute(int count)
+  public SampleSizeAttribute(int count) : base(MetaDataName.SampleSize, count)
   {
-    Count = count;
   }
-
-  public int Count { get; }
 }

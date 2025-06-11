@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Linq;
-using UnityEngine;
-using MethodType = DevTools.UnitTesting.UnitTestGroup.Method.MethodType;
 
 namespace DevTools.UnitTesting;
 
-internal class StatusCount
+public class StatusCount
 {
   public int AssertFailCount { get; internal set; }
   public int ExceptionCount { get; internal set; }
@@ -14,8 +12,6 @@ internal class StatusCount
     Enum.GetValues(typeof(Status)).Length];
 
   public int this[MethodType type, Status status] => counts[(int)type, (int)status];
-
-  public Vector2Int Dimension => new(counts.GetLength(0), counts.GetLength(1));
 
   public int Total
   {

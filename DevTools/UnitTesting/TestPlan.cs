@@ -5,15 +5,15 @@ using Verse;
 
 namespace DevTools.UnitTesting;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-internal class TestBlock
+[PublicAPI]
+public class TestBlock
 {
   public TestType type;
   public List<string> tests;
   public string saveFile;
   public GenerationTemplate template;
 
-  public List<UnitTestGroup> UnitTests { get; } = [];
+  internal List<UnitTestGroup> UnitTests { get; } = [];
 
   public bool TryDoPostLoad(UnitTestManager unitTestManager)
   {
@@ -39,8 +39,8 @@ internal class TestBlock
   }
 }
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-internal class TestPlan
+[PublicAPI]
+public class TestPlan
 {
   public string name;
   public List<TestBlock> plan;

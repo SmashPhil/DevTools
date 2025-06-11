@@ -6,10 +6,10 @@ using Verse;
 
 namespace DevTools;
 
-public abstract class SelectionManager
+public abstract class SelectionManager<T> where T : ISelectable
 {
   public event Action OnSelectionChanged;
-  public readonly HashSet<ISelectable> selected = [];
+  public readonly HashSet<T> selected = [];
 
   public bool AnySelected => selected.Count > 0;
 
@@ -30,12 +30,12 @@ public abstract class SelectionManager
   {
   }
 
-  public bool IsSelected(ISelectable item)
+  public bool IsSelected(T item)
   {
     return selected.Contains(item);
   }
 
-  public void HandleClicks(Rect rect, ISelectable item)
+  public void HandleClicks(Rect rect, T item)
   {
     if (Event.current is { type: EventType.MouseUp })
     {
@@ -62,10 +62,10 @@ public abstract class SelectionManager
             selected.Add(item);
           }
           OnSelectionChanged?.Invoke();
-          break;
+        break;
         case 1:
           ShowContextMenu();
-          break;
+        break;
       }
       Event.current.Use();
     }

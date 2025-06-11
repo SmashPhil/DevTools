@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Verse;
 
 namespace DevTools;
 
-public static class Utils
+public static class WidgetUtils
 {
   private static readonly Color separatorColor = new ColorInt(135, 135, 135).ToColor;
 
@@ -38,19 +38,13 @@ public static class Utils
     return rect;
   }
 
-  public static void DoRecursive<T>(T root, Action<T> action, Func<T, IEnumerable<T>> children)
+  /// <summary>
+  /// Get first line before any newline characters.
+  /// </summary>
+  public static string FirstLine(this string text)
   {
-    Stack<T> stack = new();
-    stack.Push(root);
-    while (stack.Count > 0)
-    {
-      T current = stack.Pop();
-      action(current);
-
-      foreach (T child in children(current))
-      {
-        stack.Push(child);
-      }
-    }
+    // Environment.NewLine uses the appropriate OS-specific CLRF characters which may not match
+    // on all text entries. We split on all of them to ensure only the first line is returned.
+    return text?.Split(["\r", "\n", "\r\n"], StringSplitOptions.None).FirstOrDefault();
   }
 }

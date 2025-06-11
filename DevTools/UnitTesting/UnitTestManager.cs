@@ -1,15 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading;
 using JetBrains.Annotations;
 using RimWorld;
-using RimWorld.Planet;
 using UnityEngine;
 using Verse;
-using Verse.Profile;
 
 namespace DevTools.UnitTesting;
 
@@ -22,44 +17,40 @@ namespace DevTools.UnitTesting;
 /// main thread and cause the application to hang for the duration of test execution. Because
 /// RimWorld is so tightly coupled it's impossible to predict where it might call to Unity's API.
 /// </summary>
+[PublicAPI]
 public class UnitTestManager : IDevTool
 {
   private const string ManagerName = "Unit Test";
 
-  private static bool runningUnitTests;
-
-  private ModContentPack mod;
-  private readonly Dictionary<string, UnitTestGroup> unitTests = [];
-  private Dialog_TestExplorer testExplorer;
-
-  private CancellationTokenSource cts;
+  private static TestRunner currentTestRunner;
 
   internal static bool breakOnTestFailure;
+
+  private ModContentPack mod;
+  private TestConfig config;
+  private readonly Dictionary<string, UnitTestGroup> unitTests = [];
+  private readonly Dialog_TestExplorer testExplorer;
 
   /// <summary>
   /// Event for UnitTest state changes.
   /// <para/>
   /// This event will fire when unit testing begins, and again when it finishes.
   /// </summary>
-  [UsedImplicitly]
+  [PublicAPI]
   public static event Action<bool> OnUnitTestStateChange;
+
+  public UnitTestManager()
+  {
+    testExplorer = new Dialog_TestExplorer(this);
+  }
+
+  public TestConfig Config => config;
+
+  internal IEnumerable<UnitTestGroup> UnitTests => unitTests.Values;
 
   internal List<TestPlan> TestPlans { get; } = [];
 
-  public static bool RunningUnitTests
-  {
-    get { return runningUnitTests; }
-    private set
-    {
-      if (runningUnitTests == value)
-        return;
-
-      runningUnitTests = value;
-      OnUnitTestStateChange?.Invoke(runningUnitTests);
-    }
-  }
-
-  private bool StopRequested => cts is { IsCancellationRequested: true };
+  public static bool RunningUnitTests => currentTestRunner != null;
 
   string IDevTool.ToolName => ManagerName;
 
@@ -68,10 +59,13 @@ public class UnitTestManager : IDevTool
     UnitTestAttribute attr = type.TryGetAttribute<UnitTestAttribute>();
     if (attr is null)
       return false;
-    string category = attr.Alias ?? type.Name;
-    UnitTestGroup testGroup = new(category, attr.Type);
-    if (!unitTests.ContainsKey(category))
-      unitTests[category] = testGroup;
+    string key = type.FullName;
+    if (key == null)
+      return false;
+
+    UnitTestGroup testGroup = new(type, attr.Type);
+    if (!unitTests.ContainsKey(key))
+      unitTests[key] = testGroup;
     testGroup.AddFromType(type);
     testGroup.MetaData.Load(type);
     return true;
@@ -79,27 +73,31 @@ public class UnitTestManager : IDevTool
 
   void IDevTool.Init(ModContentPack modContentPack)
   {
-    this.mod = modContentPack;
+    mod = modContentPack;
     foreach (UnitTestGroup testGroup in unitTests.Values)
     {
       if (testGroup.TestCount == 0)
-        Log.Warning($"{testGroup.Alias} has 0 tests. Execution will be skipped.");
+        Log.Warning($"{testGroup.Type.Name} has 0 tests. Execution will be skipped.");
     }
     foreach (UnitTestGroup testGroup in unitTests.Values)
     {
       testGroup.SortByExecutionPriority();
     }
-    testExplorer = new Dialog_TestExplorer(this, unitTests.Values.ToList());
+    LoadConfig();
     ReloadTestPlans();
     ExecuteCommandLineArgs();
   }
 
   private void ExecuteCommandLineArgs()
   {
-    const string RunMod = "-pid";
-    const string RunPlan = "--test-plan";
-    const string RunAll = "--test-all";
+    const string PackageIdArg = "--pid";
 
+    const string RunTestsArg = "--test";
+
+    const string FilterArg = "--where";
+    const string RunPlanArg = "--plan";
+
+    bool runTests = false;
     ArgResult result = new();
     string[] args = Environment.GetCommandLineArgs();
     if (!args.NullOrEmpty())
@@ -109,30 +107,38 @@ public class UnitTestManager : IDevTool
         string arg = args[i];
         switch (arg)
         {
-          case RunMod:
+          case PackageIdArg:
             if (i + 1 < args.Length)
               result.packageId = args[++i];
-            break;
-          case RunPlan:
+          break;
+          case RunTestsArg:
+            runTests = true;
+          break;
+          case RunPlanArg:
             if (i + 1 < args.Length)
             {
               string planName = args[++i];
               result.plan = TestPlans.FirstOrDefault(plan => plan.name == planName);
             }
-            break;
-          case RunAll:
-            result.runAll = true;
-            break;
+          break;
+          case FilterArg:
+            if (i + 1 < args.Length)
+              result.filterStr = args[++i];
+          break;
         }
       }
-      if (result.packageId == mod.PackageIdPlayerFacing)
+      if (runTests && result.packageId == mod.PackageIdPlayerFacing)
       {
         if (result.plan != null)
-          ExecuteUnitTests(result.plan);
-        else if (result.runAll)
-          ExecuteAllUnitTests();
-        else
-          throw new ArgumentException();
+          throw new NotSupportedException("TestPlans are not yet supported.");
+
+
+        ExpressionTree expressionTree = null;
+        if (!result.filterStr.NullOrEmpty())
+          expressionTree = ExpressionGenerator.Create(result.filterStr);
+        TestRunner testRunner =
+          expressionTree != null ? GetRunnerWith(expressionTree) : new TestRunner(this);
+        testRunner.Run();
       }
     }
   }
@@ -159,9 +165,24 @@ public class UnitTestManager : IDevTool
     }
   }
 
-  internal bool TryGetUnitTest(string category, out UnitTestGroup testGroup)
+  private void LoadConfig()
   {
-    return unitTests.TryGetValue(category, out testGroup);
+    const string ConfigFileName = "TestConfig.xml";
+
+    FileInfo file = new(GenFile.ResolveCaseInsensitiveFilePath(mod.RootDir, ConfigFileName));
+    if (file.Exists)
+    {
+      config = DirectXmlLoader.ItemFromXmlFile<TestConfig>(file.FullName);
+      if (config == null)
+        Log.Warning($"[{mod.PackageIdPlayerFacing}] Unable to load test config.");
+    }
+    // Load defaults
+    config ??= new TestConfig();
+  }
+
+  internal bool TryGetUnitTest(string fullName, out UnitTestGroup testGroup)
+  {
+    return unitTests.TryGetValue(fullName, out testGroup);
   }
 
   public void OpenMenu()
@@ -169,245 +190,57 @@ public class UnitTestManager : IDevTool
     Find.WindowStack.Add(testExplorer);
   }
 
-  internal void Run(List<UnitTestGroup> testGroups, HashSet<UnitTestGroup.Method> filter = null)
+  public void OpenLogFile()
   {
-    if (RunningUnitTests)
+    if (!File.Exists(Config.log.FullPath))
     {
-      Messages.Message("Unit testing already in progress.", MessageTypeDefOf.RejectInput,
-        historical: false);
+      Messages.Message("No log file to open.", MessageTypeDefOf.RejectInput);
       return;
     }
-    foreach (UnitTestGroup testGroup in testGroups)
-    {
-      if (testGroup.Type == TestType.Disabled)
-      {
-        Log.Error($"Trying to run {testGroup.Alias} while disabled.");
-        return;
-      }
-      ExecuteUnitTests(testGroup, filter);
-    }
+    Application.OpenURL(Config.log.FullPath);
   }
 
-  internal void RunPlan(TestPlan testPlan)
+  public void ClearTestResults()
   {
-    if (RunningUnitTests)
-    {
-      Messages.Message("Unit testing already in progress.", MessageTypeDefOf.RejectInput,
-        historical: false);
+    // Parents should propagate their reset to containing functions / groups
+    foreach (ITestGroup testGroup in unitTests.Values)
+      testGroup.Reset();
+  }
+
+  public TestRunner GetRunnerWith([NotNull] TestFilter filter)
+  {
+    return new TestRunner(this, filter);
+  }
+
+  public TestRunner GetRunnerWith([NotNull] ExpressionTree expressionTree)
+  {
+    return new TestRunner(this, expressionTree);
+  }
+
+  public TestRunner GetRunnerWith<T>(Expression.Comparison comparison, string value)
+    where T : Expression, new()
+  {
+    return GetRunnerWith(new T(), comparison, value);
+  }
+
+  public TestRunner GetRunnerWith(Expression expression, Expression.Comparison comparison,
+    string value)
+  {
+    ExpressionTree tree = new();
+    tree.Add(expression, comparison, value);
+    return new TestRunner(this, tree);
+  }
+
+  public void RunAll()
+  {
+    new TestRunner(this).Run();
+  }
+
+  public void StopTesting()
+  {
+    if (!RunningUnitTests)
       return;
-    }
-    ExecuteUnitTests(testPlan);
-  }
-
-  private void ExecuteUnitTests(UnitTestGroup testGroup, HashSet<UnitTestGroup.Method> filter)
-  {
-    LongEventHandler.ExecuteWhenFinished(delegate
-    {
-      CoroutineObject.Instance.StartCoroutine(UnitTestRoutine(testGroup, filter));
-    });
-  }
-
-  private void ExecuteUnitTests(TestPlan testPlan)
-  {
-    LongEventHandler.ExecuteWhenFinished(delegate
-    {
-      CoroutineObject.Instance.StartCoroutine(TestPlanRoutine(testPlan));
-    });
-  }
-
-  private void ExecuteAllUnitTests()
-  {
-    LongEventHandler.ExecuteWhenFinished(delegate
-    {
-      CoroutineObject.Instance.StartCoroutine(TestAllRoutine());
-    });
-  }
-
-  private IEnumerator UnitTestRoutine(UnitTestGroup testGroup, HashSet<UnitTestGroup.Method> filter)
-  {
-    using UnitTestEnabler ute = new(this);
-
-    string saveFileName = testGroup.MetaData.Get<string>(MetaDataName.LoadSave);
-    if (!saveFileName.NullOrEmpty())
-    {
-      GameDataSaveLoader.LoadGame(saveFileName);
-      while (Current.ProgramState != ProgramState.Playing ||
-        LongEventHandler.AnyEventNowOrWaiting)
-      {
-        yield return null;
-      }
-      yield return new WaitForSecondsRealtime(0.25f);
-    }
-
-    foreach (object obj in SceneChangeRoutine(testGroup.Type))
-      yield return obj;
-
-    testGroup.Execute(cts.Token, filter);
-
-    if (Current.ProgramState != ProgramState.Entry)
-    {
-      GenScene.GoToMainMenu();
-      while (Current.ProgramState != ProgramState.Entry ||
-        LongEventHandler.AnyEventNowOrWaiting)
-      {
-        yield return null;
-      }
-    }
-    OpenMenu();
-  }
-
-  private IEnumerator TestPlanRoutine(TestPlan testPlan)
-  {
-    using UnitTestEnabler ute = new(this);
-
-    TestType currentTestType = TestType.Disabled;
-    foreach (TestBlock block in testPlan.plan)
-    {
-      if (StopRequested)
-        break;
-      if (block.type == TestType.Disabled)
-        continue;
-
-      if (!block.saveFile.NullOrEmpty())
-      {
-        GameDataSaveLoader.LoadGame(block.saveFile);
-        while (Current.ProgramState != ProgramState.Playing ||
-          LongEventHandler.AnyEventNowOrWaiting)
-        {
-          yield return null;
-        }
-        yield return new WaitForSecondsRealtime(0.25f);
-      }
-      else if (currentTestType != block.type)
-      {
-        // Transition between scenes
-        currentTestType = block.type;
-
-        foreach (object obj in SceneChangeRoutine(currentTestType))
-          yield return obj;
-      }
-
-      foreach (UnitTestGroup testGroup in block.UnitTests)
-      {
-        testGroup.Execute(cts.Token);
-      }
-    }
-
-    if (Current.ProgramState != ProgramState.Entry)
-    {
-      GenScene.GoToMainMenu();
-      while (Current.ProgramState != ProgramState.Entry ||
-        LongEventHandler.AnyEventNowOrWaiting)
-      {
-        if (StopRequested)
-          break;
-        yield return null;
-      }
-    }
-    OpenMenu();
-  }
-
-  private IEnumerator TestAllRoutine()
-  {
-    using UnitTestEnabler ute = new(this);
-
-    List<UnitTestGroup> groups = unitTests.Values.OrderBy(group => group.Type == TestType.MainMenu)
-     .ThenBy(group => group.Type == TestType.Playing)
-     .ThenBy(group => group.Type == TestType.PostGameExit).ToList();
-    TestType currentTestType = TestType.Disabled;
-    foreach (UnitTestGroup testGroup in groups)
-    {
-      if (StopRequested)
-        break;
-      if (testGroup.Type == TestType.Disabled)
-        continue;
-
-      string saveFile = testGroup.MetaData.Get<string>(MetaDataName.LoadSave);
-      if (!saveFile.NullOrEmpty())
-      {
-        GameDataSaveLoader.LoadGame(saveFile);
-        while (Current.ProgramState != ProgramState.Playing ||
-          LongEventHandler.AnyEventNowOrWaiting)
-        {
-          yield return null;
-        }
-        yield return new WaitForSecondsRealtime(0.25f);
-      }
-      else if (currentTestType != testGroup.Type)
-      {
-        // Transition between scenes
-        currentTestType = testGroup.Type;
-        foreach (object obj in SceneChangeRoutine(currentTestType))
-          yield return obj;
-      }
-      testGroup.Execute(cts.Token);
-    }
-
-    if (Current.ProgramState != ProgramState.Entry)
-    {
-      GenScene.GoToMainMenu();
-      while (Current.ProgramState != ProgramState.Entry ||
-        LongEventHandler.AnyEventNowOrWaiting)
-      {
-        if (StopRequested)
-          break;
-        yield return null;
-      }
-    }
-    OpenMenu();
-  }
-
-  private static IEnumerable SceneChangeRoutine(TestType testType)
-  {
-    switch (testType)
-    {
-      case TestType.MainMenu:
-      {
-        if (Current.ProgramState != ProgramState.Entry)
-        {
-          GenScene.GoToMainMenu();
-          while (Current.ProgramState != ProgramState.Entry ||
-            LongEventHandler.AnyEventNowOrWaiting)
-          {
-            yield return null;
-          }
-        }
-        break;
-      }
-      case TestType.Playing:
-      {
-        GenerateMap();
-        while (Current.ProgramState != ProgramState.Playing ||
-          LongEventHandler.AnyEventNowOrWaiting)
-        {
-          yield return null;
-        }
-        break;
-      }
-      case TestType.PostGameExit:
-      {
-        if (Current.ProgramState != ProgramState.Playing)
-        {
-          GenerateMap();
-          while (Current.ProgramState != ProgramState.Playing ||
-            LongEventHandler.AnyEventNowOrWaiting)
-          {
-            yield return null;
-          }
-        }
-        GenScene.GoToMainMenu();
-        while (Current.ProgramState != ProgramState.Entry ||
-          LongEventHandler.AnyEventNowOrWaiting)
-        {
-          yield return null;
-        }
-        break;
-      }
-      case TestType.Disabled:
-      default:
-        throw new ArgumentException("Trying to execute disabled test type.");
-    }
-    yield return new WaitForSecondsRealtime(0.25f);
+    currentTestRunner.SignalToStop();
   }
 
   private static void TestExceptionHandler(Exception ex)
@@ -418,70 +251,30 @@ public class UnitTestManager : IDevTool
     GenScene.GoToMainMenu();
   }
 
-  private static void GenerateMap( /*TestBlock block*/)
-  {
-    LongEventHandler.QueueLongEvent(delegate
-    {
-      MemoryUtility.ClearAllMapsAndWorld();
-      SetupForTest( /*block.template*/);
-      PageUtility.InitGameStart();
-    }, "GeneratingMap", true, GameAndMapInitExceptionHandlers.ErrorWhileGeneratingMap);
-  }
-
-  private static void SetupForTest(GenerationTemplate template = null)
-  {
-    // If template is null, default to QuickTest parameters
-    if (template == null)
-    {
-      Root_Play.SetupForQuickTestPlay();
-      return;
-    }
-
-    Current.ProgramState = ProgramState.Entry;
-    Current.Game = new Game();
-    Current.Game.InitData = new GameInitData();
-    Current.Game.Scenario = ScenarioDefOf.Crashlanded.scenario;
-    Find.Scenario.PreConfigure();
-    Current.Game.storyteller = new Storyteller(StorytellerDefOf.Cassandra, DifficultyDefOf.Rough);
-
-    Current.Game.World = WorldGenerator.GenerateWorld(template.world.percent,
-      GenText.RandomSeedString(),
-      template.world.rainfall, template.world.temperature, template.world.population,
-      template.world.landmarkDensity);
-    Find.GameInitData.ChooseRandomStartingTile();
-    if (template.map?.biome != null)
-    {
-      Find.WorldGrid[Find.GameInitData.startingTile].PrimaryBiome = template.map.biome;
-    }
-
-    Find.Scenario.PostIdeoChosen();
-  }
-
   private record ArgResult
   {
     public string packageId;
     public TestPlan plan;
-    public bool runAll;
+    public string filterStr;
   }
 
-  private readonly struct UnitTestEnabler : IDisposable
+  internal class UnitTestEnabler : IDisposable
   {
+    // Disables Harmony's stack trace caching for full verbosity while conducting unit tests
     private readonly StackTraceCacheDisabler stcDisabler;
-    private readonly Test.TestLogger logger;
 
-    public UnitTestEnabler(UnitTestManager manager)
+    public UnitTestEnabler(TestRunner runner)
     {
-      logger = new Test.TestLogger();
       stcDisabler = new StackTraceCacheDisabler();
-      RunningUnitTests = true;
-      manager.cts = new CancellationTokenSource();
+      currentTestRunner = runner;
+      OnUnitTestStateChange?.Invoke(true);
     }
 
     void IDisposable.Dispose()
     {
       stcDisabler.Dispose();
-      logger.Dispose();
-      RunningUnitTests = false;
+      currentTestRunner = null;
+      OnUnitTestStateChange?.Invoke(false);
     }
   }
 }

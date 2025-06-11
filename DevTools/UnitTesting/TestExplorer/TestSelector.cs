@@ -1,10 +1,9 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using Verse;
 
 namespace DevTools.UnitTesting;
 
-internal class TestSelector : SelectionManager
+internal class TestSelector : SelectionManager<ITestCase>
 {
   private readonly UnitTestManager unitTestManager;
 
@@ -17,16 +16,28 @@ internal class TestSelector : SelectionManager
   {
     List<FloatMenuOption> options = [];
     // ReSharper disable UseObjectOrCollectionInitializer
-    FloatMenuOption runSelectedOpt = new("Run Selected",
-      delegate
-      {
-        unitTestManager.Run(
-          [.. selected.Where(item => item is UnitTestGroup).Cast<UnitTestGroup>()],
-          [.. selected.Where(item => item is UnitTestGroup.Method).Cast<UnitTestGroup.Method>()]);
-      });
+    FloatMenuOption runSelectedOpt =
+      new("Run Selected", unitTestManager.GetRunnerWith(SelectedFilter).Run);
     runSelectedOpt.Disabled = !AnySelected;
     options.Add(runSelectedOpt);
 
     Find.WindowStack.Add(new FloatMenu(options));
+  }
+
+  private IEnumerable<(ITestGroup, List<ITestFunction>)> SelectedFilter(
+    UnitTestManager unitTestManager)
+  {
+    foreach (UnitTestGroup group in unitTestManager.UnitTests)
+    {
+      List<ITestFunction> functions = [];
+      bool runAllInGroup = selected.Contains(group);
+      foreach (ITestFunction testFunction in group.TestFunctions)
+      {
+        if (runAllInGroup || selected.Contains(testFunction))
+          functions.Add(testFunction);
+      }
+      if (!functions.NullOrEmpty())
+        yield return (group, functions);
+    }
   }
 }

@@ -2,13 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
 using DevTools.Benchmarking;
 using UnityEngine;
 using UnityEngine.Assertions;
 using Verse;
-using static DevTools.UnitTesting.UnitTestGroup;
-using Debug = UnityEngine.Debug;
 
 namespace DevTools.UnitTesting;
 
@@ -22,16 +19,18 @@ internal class ContextGroup : IDataRow<ExplorerColumn>, ITestCase
   {
     Name = label;
     Parent = parent;
-    TestCase = parent?.TestCase; // Root (null parent) will have TestCase self assign
+    Function = parent?.Function; // Root (null parent) will have TestCase self assign
   }
 
   public string Name { get; }
+
+  public Type Type => Parent?.Type;
 
   public int TestCount => Results.Count + Groups.Sum(group => group.TestCount);
 
   public Dictionary<string, string> Traits { get; } = [];
 
-  public Method TestCase { get; set; }
+  public TestFunction Function { get; set; }
 
   public ContextGroup Parent { get; }
 
@@ -40,6 +39,8 @@ internal class ContextGroup : IDataRow<ExplorerColumn>, ITestCase
   public List<ContextGroup> Groups { get; } = [];
 
   public List<TestResult> Results { get; } = [];
+
+  bool IDataRow<ExplorerColumn>.ShouldHide => MetaData.Get<bool>(MetaDataName.Disabled);
 
   public bool CanExpand => !Groups.NullOrEmpty();
 
@@ -61,29 +62,11 @@ internal class ContextGroup : IDataRow<ExplorerColumn>, ITestCase
     set
     {
       failMessageInt = value;
-      if (FailMessage == null)
-      {
-        FailLabel = null;
-      }
-      else
-      {
-        int newlineIdx =
-          FailMessage.IndexOf(Environment.NewLine, StringComparison.InvariantCulture);
-        FailLabel = newlineIdx < 0 ?
-          FailMessage :
-          FailMessage.Substring(0, newlineIdx);
-      }
+      FailLabel = FailMessage.FirstLine();
     }
   }
 
   public Exception Exception { get; set; }
-
-  public string StackTrace { get; set; }
-
-  private static IEnumerable<ContextGroup> GetChildren(ContextGroup group)
-  {
-    return group.Groups;
-  }
 
   public void Open()
   {
@@ -97,15 +80,14 @@ internal class ContextGroup : IDataRow<ExplorerColumn>, ITestCase
 
   public void Reset()
   {
-    Utils.DoRecursive(this, ResetRecursive, GetChildren);
+    ResetRecursive(this);
     return;
 
     static void ResetRecursive(ContextGroup group)
     {
       group.Status = Status.NotRun;
       group.FailMessage = null;
-      group.StackTrace = null;
-
+      group.Results.Clear();
       foreach (ContextGroup subGroup in group.Groups)
       {
         ResetRecursive(subGroup);
@@ -130,24 +112,32 @@ internal class ContextGroup : IDataRow<ExplorerColumn>, ITestCase
         case Status.Failed:
           group.Status = testResult.status;
           group.FailMessage = $"{testResult.label} failed.";
-          group.StackTrace = testResult.stackFrame.ToString();
-          break;
+        break;
         case Status.Canceled or Status.Skipped:
           // Reason for skip or cancellation will be in the message.
-          group.FailMessage = testResult.message;
           group.Status = testResult.status;
-          break;
+          group.FailMessage = testResult.message;
+        break;
       }
     }
     foreach (ContextGroup contextGroup in group.Groups)
     {
       TabulateTestResultsRecursive(contextGroup);
+      // Propagate failure to the top
+      if (contextGroup.Status < group.Status)
+        group.Status = contextGroup.Status;
     }
   }
 
   void IDataRow<ExplorerColumn>.Draw(Rect rect, ExplorerColumn column)
   {
     column.Draw(rect, this);
+  }
+
+  public void Fail(string reason)
+  {
+    Status = Status.Failed;
+    FailMessage = reason;
   }
 
   public void TestOutcomes(StatusCount statusCount)
@@ -163,15 +153,15 @@ internal class ContextGroup : IDataRow<ExplorerColumn>, ITestCase
       {
         case AssertionException:
           statusCount.AssertFailCount++;
-          break;
+        break;
         default:
           statusCount.ExceptionCount++;
-          break;
+        break;
       }
     }
     foreach (TestResult testResult in group.Results)
     {
-      statusCount.Increment(group.TestCase.Type, testResult.status);
+      statusCount.Increment(group.Function.MethodType, testResult.status);
     }
     foreach (ContextGroup subGroup in group.Groups)
     {

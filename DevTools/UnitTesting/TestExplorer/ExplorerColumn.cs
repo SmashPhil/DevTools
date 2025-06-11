@@ -1,13 +1,14 @@
 ﻿using System;
+using DevTools.Benchmarking;
 using JetBrains.Annotations;
 using UnityEngine;
 using Verse;
 
 namespace DevTools.UnitTesting;
 
+[PublicAPI]
 [StaticConstructorOnStartup]
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-internal class ExplorerColumn : IDataColumn
+public class ExplorerColumn : IDataColumn
 {
   internal const float LineHeight = 30;
 
@@ -66,16 +67,16 @@ internal class ExplorerColumn : IDataColumn
     {
       case Type.Tests:
         DrawTests(rect, testCase);
-        break;
+      break;
       case Type.Duration:
         DrawDuration(rect, testCase);
-        break;
+      break;
       case Type.Traits:
         DrawTrait(rect, testCase);
-        break;
+      break;
       case Type.ErrorMessage:
         DrawErrorMessage(rect, testCase);
-        break;
+      break;
       default:
         throw new NotImplementedException(nameof(Type));
     }
@@ -110,7 +111,7 @@ internal class ExplorerColumn : IDataColumn
   private static void DrawDuration(Rect rect, ITestCase testCase)
   {
     if (testCase.Status < Status.NotRun)
-      Widgets.Label(rect, Test.TimeLabel(testCase.Duration.mean));
+      Widgets.Label(rect, TimeLabel(testCase.Duration.Mean));
   }
 
   private static void DrawTrait(Rect rect, ITestCase testCase)
@@ -160,6 +161,13 @@ internal class ExplorerColumn : IDataColumn
       Status.NotRun   => "Not Run",
       _               => throw new NotImplementedException(),
     };
+  }
+
+  private static string TimeLabel(double value)
+  {
+    return value < 1 ?
+      $"< 1 {Benchmark.MeasurementSuffix(Benchmark.Measurement.Milliseconds)}" :
+      $"{value:0} {Benchmark.MeasurementSuffix(Benchmark.Measurement.Milliseconds)}";
   }
 
   public enum Type

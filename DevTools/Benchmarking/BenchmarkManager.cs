@@ -61,18 +61,29 @@ internal class BenchmarkManager : IDevTool
     Find.WindowStack.Add(new Dialog_DebugOptionListLister(options, ManagerName));
   }
 
-  private static void OutputResults(string groupName,
+  private static void OutputResults(BenchmarkMethods benchmarks,
     List<(string name, Result result)> resultsByMethod)
   {
+    GraphType graphType = benchmarks.MetaData.Get(MetaDataName.Graph, GraphType.None);
+    if (graphType != GraphType.None)
+    {
+      //Find.WindowStack.Add(new Dialog_BenchmarkResults(stats, resultsByMethod));
+      return;
+    }
+    Stat stats = benchmarks.MetaData.Get(MetaDataName.Table, Stat.Mean | Stat.Median | Stat.StdDev);
+    if (stats > Stat.None)
+    {
+      Find.WindowStack.Add(
+        new Dialog_BenchmarkResults(stats, benchmarks.category, resultsByMethod));
+      return;
+    }
     StringBuilder stringBuilder = new();
-
-    stringBuilder.AppendLine($"----------     {groupName}     ----------");
+    stringBuilder.AppendLine($"----------     {benchmarks.category}     ----------");
     foreach ((string name, Result result) in resultsByMethod)
     {
-      stringBuilder.AppendLine($"{name}: {result.TotalString}");
+      stringBuilder.AppendLine($"{name}: {result.Formatted(result.Mean)}");
     }
-    stringBuilder.Append("------------------------------------");
-
+    stringBuilder.AppendLine();
     Log.Message(stringBuilder.ToString());
     Log.TryOpenLogWindow();
   }
@@ -152,39 +163,42 @@ internal class BenchmarkManager : IDevTool
     {
       LongEventHandler.SetCurrentEventText($"Running {name}");
       ParameterInfo[] parameters = method.GetParameters();
+      int sampleSize = benchmarks.MetaData.Get(MetaDataName.SampleSize, fallback: 1);
+      Benchmark.Measurement measurement =
+        benchmarks.MetaData.Get(MetaDataName.Measurement, Benchmark.Measurement.Auto);
       switch (parameters.Length)
       {
         case 0:
-          resultsByMethod.Add((name, RunTest(method, benchmarks.sampleSize)));
+          resultsByMethod.Add((name, RunTest(method, sampleSize, measurement)));
           break;
         case 1:
           Result results = (Result)GenGeneric.InvokeStaticGenericMethod(
-            typeof(BenchmarkManager),
-            parameters[0].ParameterType, nameof(RunTestWithContext), type, method,
-            benchmarks.sampleSize);
+            typeof(BenchmarkManager), parameters[0].ParameterType, nameof(RunTestWithContext), type,
+            method, sampleSize, measurement);
           resultsByMethod.Add((name, results));
           break;
       }
     }
-    OutputResults(benchmarks.category, resultsByMethod);
+    OutputResults(benchmarks, resultsByMethod);
   }
 
-  private static unsafe Result RunTest(MethodInfo method, int sampleSize)
+  private static unsafe Result RunTest(MethodInfo method, int sampleSize,
+    Benchmark.Measurement measurement)
   {
     Assert.IsTrue(method.GetParameters().NullOrEmpty());
     delegate*<void> funcPtr = (delegate*<void>)method.MethodHandle.GetFunctionPointer();
-    return Benchmark.Run(sampleSize, funcPtr);
+    return Benchmark.Run(funcPtr, sampleSize, measurement);
   }
 
   private static unsafe Result RunTestWithContext<T>(Type declaringType, MethodInfo method,
-    int sampleSize) where T : struct
+    int sampleSize, Benchmark.Measurement measurement) where T : struct
   {
     // sanity check
     Assert.IsTrue(method.GetParameters().Length == 1);
 
     delegate*<ref T, void> funcPtr =
       (delegate*<ref T, void>)method.MethodHandle.GetFunctionPointer();
-    return Benchmark.Run(sampleSize, funcPtr, GetContext<T>(declaringType));
+    return Benchmark.Run(funcPtr, GetContext<T>(declaringType), sampleSize, measurement);
   }
 
   private static T GetContext<T>(Type declaringType) where T : struct
@@ -213,7 +227,6 @@ internal class BenchmarkManager : IDevTool
   private class BenchmarkMethods
   {
     public readonly string category;
-    public int sampleSize = 1;
     public readonly List<BenchmarkMethod> tests = [];
     public readonly List<BenchmarkMethod> setupMethods = [];
     public readonly List<BenchmarkMethod> onFinishMethods = [];
@@ -236,10 +249,6 @@ internal class BenchmarkManager : IDevTool
         Log.Error("Mismatched AllowedGameStates property on benchmark categories.");
       if (classAttr.RunAsync != runAsync)
         Log.Error("Mismatched RunAsync setting on benchmark categories.");
-
-      SampleSizeAttribute sampleSizeAttr = type.TryGetAttribute<SampleSizeAttribute>();
-      if (sampleSizeAttr is not null && sampleSizeAttr.Count > sampleSize)
-        sampleSize = sampleSizeAttr.Count;
 
       foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic |
         BindingFlags.Static))

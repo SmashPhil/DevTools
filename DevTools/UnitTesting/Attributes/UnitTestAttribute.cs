@@ -11,6 +11,4 @@ public class UnitTestAttribute : Attribute
   }
 
   public TestType Type { get; }
-
-  public string Alias { get; set; }
 }
