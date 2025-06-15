@@ -3,7 +3,7 @@ using JetBrains.Annotations;
 
 namespace DevTools.UnitTesting;
 
-[AttributeUsage(AttributeTargets.Method)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public class ExecutionPriorityAttribute : Attribute, IMetaData
 {

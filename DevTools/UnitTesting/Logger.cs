@@ -29,6 +29,16 @@ public class Logger : IDisposable
 
   public bool Disposed { get; private set; }
 
+  public void Flush()
+  {
+    lock (writerLock)
+    {
+      if (Disposed)
+        return;
+      writer.Flush();
+    }
+  }
+
   public void Write(string message)
   {
     if (Disposed || !file.Exists || file.Length >= config.maxFileSize)
@@ -74,7 +84,7 @@ public class Logger : IDisposable
     public const long DefaultFileLimit = 10 * MegaByteConversion;
 
     public long maxFileSize = 10 * MegaByteConversion; // 10 mb
-    public bool verboseLogging;
+    public bool verboseLogging = true;
     public string filePath = Application.persistentDataPath;
 
     public string FullPath => Path.Combine(filePath, LogFileName);

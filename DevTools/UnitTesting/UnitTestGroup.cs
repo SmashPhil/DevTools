@@ -73,8 +73,20 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
   {
     get
     {
+      foreach (TestFunction method in setUps)
+      {
+        if (method.Status != Status.Passed && method.Status != Status.NotRun)
+          yield return method;
+      }
       foreach (TestFunction method in tests)
+      {
         yield return method;
+      }
+      foreach (TestFunction method in tearDowns)
+      {
+        if (method.Status != Status.Passed && method.Status != Status.NotRun)
+          yield return method;
+      }
     }
   }
 
@@ -110,6 +122,7 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
     {
       if (function.IsDisabled())
         continue;
+      using LogWatcher lw = new(function);
       function.Execute();
       success &= function.Status == Status.Passed;
     }
@@ -125,6 +138,7 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
       {
         if (function.IsDisabled())
           continue;
+        using LogWatcher lw = new(function);
         function.Execute();
         success &= function.Status == Status.Passed;
       }
@@ -134,7 +148,7 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
     {
       groupTimer.Stop();
       Duration = new Benchmark.Result(groupTimer, 1, Benchmark.Measurement.Milliseconds);
-      Status = tests.Min(test => test.Status);
+      Status = setUps.Concat(tests).Concat(tearDowns).Min(test => test.Status);
     }
   }
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using JetBrains.Annotations;
 using UnityEngine;
@@ -6,39 +7,48 @@ using Verse;
 
 namespace DevTools.UnitTesting;
 
-internal class LogWatcher : IDisposable
+internal readonly struct LogWatcher : IDisposable
 {
-  private readonly UnitTestManager unitTestManager;
-  private readonly Dictionary<LogType, List<string>> logCounts = [];
+  private static readonly ConcurrentDictionary<LogType, List<LogEntry>> logCounts = [];
 
-  public LogWatcher(UnitTestManager unitTestManager)
+  private readonly ITestCase testCase;
+
+  public LogWatcher(ITestCase testCase)
   {
-    this.unitTestManager = unitTestManager;
+    this.testCase = testCase;
     Application.logMessageReceivedThreaded += LogReceived;
   }
 
-  public UnitTestManager UnitTestManager => unitTestManager;
-
   [MustUseReturnValue]
-  public List<string> LogsOfType(LogType type)
+  public static List<LogEntry> LogsOfType(LogType type)
   {
     return logCounts.TryGetValue(type, fallback: null);
   }
 
-  public void Flush()
-  {
-    logCounts.Clear();
-  }
-
-  private void LogReceived(string msg, string stackTrace, LogType type)
+  private static void LogReceived(string msg, string stackTrace, LogType type)
   {
     if (!logCounts.ContainsKey(type))
       logCounts[type] = [];
-    logCounts[type].Add(msg);
+    logCounts[type].Add(new LogEntry(msg, stackTrace));
   }
 
-  public void Dispose()
+  void IDisposable.Dispose()
   {
-    Application.logMessageReceivedThreaded -= LogReceived;
+    try
+    {
+      testCase.VerifyLogs(LogType.Warning);
+      testCase.VerifyLogs(LogType.Error);
+      logCounts.Clear();
+    }
+    finally
+    {
+      Application.logMessageReceivedThreaded -= LogReceived;
+    }
+  }
+
+  public readonly struct LogEntry(string message, string stackTrace)
+  {
+    public readonly string message = message;
+    public readonly string stackTrace = stackTrace;
   }
 }

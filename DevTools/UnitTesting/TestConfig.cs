@@ -18,7 +18,9 @@ public class TestConfig
   public bool stopOnFailure;
   public bool retryOnFailure;
 
-  public int? randSeed;
+  public uint? randSeed;
+  public WorldGenerationSettings world = new();
+  public MapGenerationSettings map = new();
 
   public Logger.Config log = new();
   public bool showDisabledTests;

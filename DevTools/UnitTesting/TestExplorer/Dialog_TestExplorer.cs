@@ -71,6 +71,7 @@ internal sealed class Dialog_TestExplorer : Window
       //new ExplorerColumn(ExplorerColumn.Type.Traits, 150),
       new ExplorerColumn(ExplorerColumn.Type.ErrorMessage, 1000)
     );
+
     table.SetRows(testGroups);
     table.SetSelector(new TestSelector(unitTestManager));
     table.Selector.OnSelectionChanged += RebuildSummary;

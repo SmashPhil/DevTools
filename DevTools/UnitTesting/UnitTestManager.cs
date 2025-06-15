@@ -50,6 +50,8 @@ public class UnitTestManager : IDevTool
 
   internal List<TestPlan> TestPlans { get; } = [];
 
+  public static UnitTestManager CurrentActive => currentTestRunner?.unitTestManager;
+
   public static bool RunningUnitTests => currentTestRunner != null;
 
   string IDevTool.ToolName => ManagerName;

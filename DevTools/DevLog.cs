@@ -27,6 +27,11 @@ public static class DevLog
     logger.WriteVerbose(message);
   }
 
+  public static void Flush()
+  {
+    logger.Flush();
+  }
+
   public static void EnableLogger([NotNull] Logger.Config config)
   {
     logger = new Logger(config);

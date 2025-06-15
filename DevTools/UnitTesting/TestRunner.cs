@@ -21,7 +21,7 @@ public delegate bool StopOnTestFunction(ITestFunction function);
 [PublicAPI]
 public sealed class TestRunner
 {
-  private readonly UnitTestManager unitTestManager;
+  public readonly UnitTestManager unitTestManager;
 
   private readonly TestPlan testPlan;
   private readonly ExpressionTree expressionTree;
@@ -128,13 +128,15 @@ public sealed class TestRunner
     using UnitTestManager.UnitTestEnabler ute = new(this);
     // Enables test logger, separate from unity log
     using DevLog.Enabler logEnabler = new(config.log);
-    // Observes unity log for warning and error count during unit tests
-    using LogWatcher logWatcher = new(unitTestManager);
 
     config.RunPreTests();
 
-    int seed = config.randSeed ?? Rand.Int;
-    using RandBlock randBlock = new(seed);
+    // Running unit tests from command line will jump into this coroutine before Root.Start has a 
+    // chance to run. Skip 1 frame and then continue so all Root fields had a chance to initialize.
+    yield return null;
+
+    uint seed = config.randSeed ?? (uint)Rand.Int;
+    using RandBlockPersistent randBlock = new(seed);
     DevLog.Write($"Starting tests with seed: {seed}");
     DevLog.WriteLine();
     TestType currentTestType = TestType.MainMenu;
@@ -162,7 +164,6 @@ public sealed class TestRunner
           DevLog.Write($"Failed to set up {group.Type.Name}!");
           continue;
         }
-        group.VerifyAllLogsAndFlush(logWatcher);
         foreach (ITestFunction function in functions)
         {
           if (function.IsDisabled())
@@ -173,16 +174,18 @@ public sealed class TestRunner
           int attempts = config.retryOnFailure ? 2 : 1;
           do
           {
-            // Execute tests
-            if (function.IsSubRoutine())
+            using (new LogWatcher(function))
             {
-              yield return function.ExecuteRoutine();
+              // Execute tests
+              if (function.IsSubRoutine())
+              {
+                yield return function.ExecuteRoutine();
+              }
+              else
+              {
+                function.Execute();
+              }
             }
-            else
-            {
-              function.Execute();
-            }
-            function.VerifyAllLogsAndFlush(logWatcher);
 
             if (function.Status != Status.Failed)
               break;
@@ -200,7 +203,6 @@ public sealed class TestRunner
         DevLog.WriteVerbose($"Tearing down {group.Type.Name}");
         if (!group.TearDown())
           DevLog.Write($"Failed tear down of {group.Type.Name}!");
-        group.VerifyAllLogsAndFlush(logWatcher);
       }
       if (ShouldStop(group))
         break;
@@ -242,8 +244,9 @@ public sealed class TestRunner
     return false;
   }
 
-  private static IEnumerator SceneChangeRoutine(TestType testType, string saveFile = null)
+  private IEnumerator SceneChangeRoutine(TestType testType, string saveFile = null)
   {
+    TestConfig config = unitTestManager.Config;
     switch (testType)
     {
       case TestType.MainMenu:
@@ -251,11 +254,23 @@ public sealed class TestRunner
           yield return LoadMainMenu();
       break;
       case TestType.Playing:
-        yield return LoadGame(saveFile);
+
+        if (!saveFile.NullOrEmpty())
+        {
+          yield return LoadSaveRoutine(saveFile);
+        }
+        else if (Find.World == null)
+        {
+          yield return GenerateWorldRoutine(config.world, config.map);
+        }
+        else
+        {
+          yield return GenerateMapRoutine(config.map);
+        }
       break;
       case TestType.PostGameExit:
         if (Current.ProgramState != ProgramState.Playing)
-          yield return LoadGame(null);
+          yield return GenerateWorldRoutine(config.world, config.map);
         Assert.IsTrue(Current.ProgramState != ProgramState.Entry);
         yield return LoadMainMenu();
       break;
@@ -277,58 +292,90 @@ public sealed class TestRunner
       }
     }
 
-    static IEnumerator LoadGame(string saveFile)
+    static IEnumerator LoadSaveRoutine(string saveFile)
     {
+      using GenStepWarningDisabler gswd = new();
       // Handle scene transition
-      if (!saveFile.NullOrEmpty())
-        GameDataSaveLoader.LoadGame(saveFile);
-      else
-        GenerateMap();
+      Assert.IsTrue(!saveFile.NullOrEmpty());
+      GameDataSaveLoader.LoadGame(saveFile);
+      yield return WaitTillProgramState(ProgramState.Playing);
+    }
 
-      while (Current.ProgramState != ProgramState.Playing ||
-        LongEventHandler.AnyEventNowOrWaiting)
-      {
-        yield return null;
-      }
-      // Skip 1 extra frame to allow for game to execute its single tick on load
-      yield return null;
+    static IEnumerator GenerateWorldRoutine(WorldGenerationSettings worldGenSettings,
+      MapGenerationSettings mapGenSettings)
+    {
+      using GenStepWarningDisabler gswd = new();
+      GenerateWorld(worldGenSettings, mapGenSettings);
+      yield return WaitTillProgramState(ProgramState.Playing);
+    }
+
+    static IEnumerator GenerateMapRoutine(MapGenerationSettings mapGenSettings)
+    {
+      throw new NotImplementedException();
+      using GenStepWarningDisabler gswd = new();
+      //InitGame(mapGenSettings);
+      yield return WaitTillProgramState(ProgramState.Playing);
     }
   }
 
-  private static void GenerateMap( /*TestBlock block*/)
+  private static IEnumerator WaitTillProgramState(ProgramState programState)
+  {
+    while (Current.ProgramState != programState ||
+      LongEventHandler.AnyEventNowOrWaiting)
+    {
+      yield return null;
+    }
+    // Skip 1 extra frame to allow for game to execute its single tick on load
+    yield return null;
+  }
+
+  private static void GenerateMap(MapGenerationSettings mapGenSettings)
+  {
+  }
+
+  private static void GenerateWorld(WorldGenerationSettings worldGenSettings,
+    MapGenerationSettings mapGenSettings)
   {
     LongEventHandler.QueueLongEvent(delegate
     {
       MemoryUtility.ClearAllMapsAndWorld();
-      SetupForTest( /*block.template*/);
-      PageUtility.InitGameStart();
+      InitGame(worldGenSettings, mapGenSettings);
+      LongEventHandler.QueueLongEvent(delegate
+      {
+        Find.GameInitData.PrepForMapGen();
+        Find.Scenario.PreMapGenerate();
+      }, "Play", "GeneratingMap", true, null);
+      //Current.Game.InitNewGame();
     }, "GeneratingMap", true, GameAndMapInitExceptionHandlers.ErrorWhileGeneratingMap);
   }
 
-  private static void SetupForTest(GenerationTemplate template = null)
+  private static void InitGame(WorldGenerationSettings worldGenSettings,
+    MapGenerationSettings mapGenSettings)
   {
-    // If template is null, default to QuickTest parameters
-    if (template == null)
+    Game game = new();
+    GameInitData gameInitData = new();
+
+    if (mapGenSettings != null)
     {
-      Root_Play.SetupForQuickTestPlay();
-      return;
+      gameInitData.mapSize = mapGenSettings.size;
+      gameInitData.mapGeneratorDef = mapGenSettings.mapGeneratorDef;
     }
 
     Current.ProgramState = ProgramState.Entry;
-    Current.Game = new Game();
-    Current.Game.InitData = new GameInitData();
+    Game.ClearCaches();
+    Current.Game = game;
+    Current.Game.InitData = gameInitData;
     Current.Game.Scenario = ScenarioDefOf.Crashlanded.scenario;
     Find.Scenario.PreConfigure();
     Current.Game.storyteller = new Storyteller(StorytellerDefOf.Cassandra, DifficultyDefOf.Rough);
-
-    Current.Game.World = WorldGenerator.GenerateWorld(template.world.percent,
+    Current.Game.World = WorldGenerator.GenerateWorld(worldGenSettings.percent,
       GenText.RandomSeedString(),
-      template.world.rainfall, template.world.temperature, template.world.population,
-      template.world.landmarkDensity);
+      worldGenSettings.rainfall, worldGenSettings.temperature, worldGenSettings.population,
+      worldGenSettings.landmarkDensity);
     Find.GameInitData.ChooseRandomStartingTile();
-    if (template.map?.biome != null)
+    if (mapGenSettings?.biome != null)
     {
-      Find.WorldGrid[Find.GameInitData.startingTile].PrimaryBiome = template.map.biome;
+      Find.WorldGrid[Find.GameInitData.startingTile].PrimaryBiome = mapGenSettings.biome;
     }
 
     Find.Scenario.PostIdeoChosen();

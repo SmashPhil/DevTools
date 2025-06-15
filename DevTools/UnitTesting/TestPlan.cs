@@ -11,7 +11,7 @@ public class TestBlock
   public TestType type;
   public List<string> tests;
   public string saveFile;
-  public GenerationTemplate template;
+  public WorldGenerationSettings template;
 
   internal List<UnitTestGroup> UnitTests { get; } = [];
 

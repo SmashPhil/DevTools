@@ -19,30 +19,24 @@ internal static class TestUtiliies
     return testCase.MetaData.Get<bool>(MetaDataName.Disabled);
   }
 
-  public static void VerifyAllLogsAndFlush(this ITestCase testCase, LogWatcher watcher)
+  public static void VerifyLogs(this ITestCase testCase, LogType logType)
   {
-    testCase.VerifyLogs(watcher, LogType.Warning);
-    testCase.VerifyLogs(watcher, LogType.Error);
-    // Clears results for next test case
-    watcher.Flush();
-  }
-
-  private static void VerifyLogs(this ITestCase testCase, LogWatcher watcher, LogType logType)
-  {
-    TestConfig config = watcher.UnitTestManager.Config;
+    UnitTestManager unitTestManager = UnitTestManager.CurrentActive;
+    Assert.IsNotNull(unitTestManager);
+    TestConfig config = unitTestManager.Config;
     Assert.IsNotNull(config);
     if (!config.VerifyForLogType(logType) || testCase.Status == Status.Failed)
       return;
 
-    List<string> logs = watcher.LogsOfType(logType);
+    List<LogWatcher.LogEntry> logs = LogWatcher.LogsOfType(logType);
     if (logs.NullOrEmpty())
       return;
 
-    foreach (string message in logs)
+    foreach (LogWatcher.LogEntry entry in logs)
     {
-      if (!config.LogContained(logType, message))
+      if (!config.LogContained(logType, entry.message))
       {
-        string reason = FailReason(logType, message);
+        string reason = FailReason(logType, entry);
         DevLog.Write($"{Expect.FailedLabel} {reason}");
         testCase.Fail(reason);
         return;
@@ -50,14 +44,15 @@ internal static class TestUtiliies
     }
     return;
 
-    static string FailReason(LogType logType, string message)
+    static string FailReason(LogType logType, in LogWatcher.LogEntry entry)
     {
       return logType switch
       {
         LogType.Error or LogType.Assert or LogType.Exception =>
-          $"Logged error not whitelisted for tests.\nError = \"{message}\"",
-        LogType.Warning => $"Logged warning not whitelisted for tests.\nWarning = \"{message}\"",
-        _               => throw new NotImplementedException(nameof(LogType))
+          $"Logged error not whitelisted for tests.\nError = \"{entry.message}\"{Environment.NewLine}{entry.stackTrace}",
+        LogType.Warning =>
+          $"Logged warning not whitelisted for tests.\nWarning = \"{entry.message}\"{Environment.NewLine}{entry.stackTrace}",
+        _ => throw new NotImplementedException(nameof(LogType))
       };
     }
   }
