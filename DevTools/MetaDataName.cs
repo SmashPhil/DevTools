@@ -12,6 +12,8 @@ internal static class MetaDataName
   public static readonly int Graph = "Graph".GetHashCode();
 
   // Unit Testing
+  public static readonly int LoadIfAllModsActive = "LoadIfAll".GetHashCode();
+  public static readonly int LoadIfAnyModsActive = "LoadIfAny".GetHashCode();
   public static readonly int Disabled = "Disabled".GetHashCode();
   public static readonly int Category = "Category".GetHashCode();
   public static readonly int Property = "Property".GetHashCode();

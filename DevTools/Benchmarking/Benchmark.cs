@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using JetBrains.Annotations;
 using UnityEngine;
-using Verse;
 using ThreadPriority = System.Threading.ThreadPriority;
 
 // ReSharper disable ExtractCommonBranchingCode
@@ -25,18 +24,28 @@ public static class Benchmark
 {
   private static void ShowWarnings()
   {
-#if !RELEASE
-    Log.WarningOnce(
-      "Benchmarks should be executed in Release to allow for JIT to make full optimizations.",
-      "Benchmark.Release".GetHashCode());
-#endif
-
+    // Can't log as an error since Ludeon's message window is not thread safe and will crash the game.
+#if RELEASE
     if (Debugger.IsAttached)
     {
-      Log.ErrorOnce(
+      Verse.Log.WarningOnce(
         "Benchmarks should not be executed with debugger attached. The results will be wildly inaccurate.",
         "Benchmark.DebuggerAttached".GetHashCode());
     }
+#endif
+  }
+
+  private static int GetPartitionedArrays(int sampleSize, out int[] thresholds, out long[] overhead,
+    out long[] results)
+  {
+    int partitions = Mathf.Min(Mathf.Max(10, sampleSize / 1000), sampleSize);
+
+    thresholds = new int[partitions];
+    for (int i = 0; i < partitions; i++)
+      thresholds[i] = Mathf.CeilToInt(sampleSize * (float)(i + 1) / partitions);
+    overhead = new long[partitions];
+    results = new long[partitions];
+    return partitions;
   }
 
   /// <returns>
@@ -59,13 +68,8 @@ public static class Benchmark
     function();
     noOp();
 
-    int partitions = Mathf.Min(Mathf.Max(1, sampleSize / 1000), 10, sampleSize);
-
-    int[] thresholds = new int[partitions];
-    for (int i = 0; i < partitions; i++)
-      thresholds[i] = Mathf.CeilToInt(sampleSize * (float)(i + 1) / partitions);
-    long[] overhead = new long[partitions];
-    long[] results = new long[partitions];
+    int partitions = GetPartitionedArrays(sampleSize, out int[] thresholds, out long[] overhead,
+      out long[] results);
 
     // Do a pass right before we enter a no GC region
     GC.Collect();
@@ -165,13 +169,8 @@ public static class Benchmark
     function(ref context);
     noOp(ref context);
 
-    int partitions = Mathf.Min(Mathf.Max(1, sampleSize / 1000), 10, sampleSize);
-
-    int[] thresholds = new int[partitions];
-    for (int i = 0; i < partitions; i++)
-      thresholds[i] = Mathf.CeilToInt(sampleSize * (float)(i + 1) / partitions);
-    long[] overhead = new long[partitions];
-    long[] results = new long[partitions];
+    int partitions = GetPartitionedArrays(sampleSize, out int[] thresholds, out long[] overhead,
+      out long[] results);
 
     // Do a pass right before we start measuring
     GC.Collect();
@@ -269,13 +268,8 @@ public static class Benchmark
     function();
     NoOp();
 
-    int partitions = Mathf.Min(Mathf.Max(1, sampleSize / 1000), 10, sampleSize);
-
-    int[] thresholds = new int[partitions];
-    for (int i = 0; i < partitions; i++)
-      thresholds[i] = Mathf.CeilToInt(sampleSize * (float)(i + 1) / partitions);
-    long[] overhead = new long[partitions];
-    long[] results = new long[partitions];
+    int partitions = GetPartitionedArrays(sampleSize, out int[] thresholds, out long[] overhead,
+      out long[] results);
 
     // Do a pass right before we enter a no GC region
     GC.Collect();
@@ -539,22 +533,23 @@ public static class Benchmark
     }
   }
 
-  private readonly struct ThreadPin : IDisposable
-  {
-    private readonly IntPtr prevAffinity;
+  // TODO
+  //private readonly struct ThreadPin : IDisposable
+  //{
+  //  private readonly IntPtr prevAffinity;
 
-    public ThreadPin(int core)
-    {
-      Process process = Process.GetCurrentProcess();
-      prevAffinity = process.ProcessorAffinity;
-      process.ProcessorAffinity = new IntPtr(1 << core);
+  //  public ThreadPin(int core)
+  //  {
+  //    Process process = Process.GetCurrentProcess();
+  //    prevAffinity = process.ProcessorAffinity;
+  //    process.ProcessorAffinity = new IntPtr(1 << core);
 
-      Thread.BeginThreadAffinity();
-    }
+  //    Thread.BeginThreadAffinity();
+  //  }
 
-    void IDisposable.Dispose()
-    {
-      throw new NotImplementedException();
-    }
-  }
+  //  void IDisposable.Dispose()
+  //  {
+  //    throw new NotImplementedException();
+  //  }
+  //}
 }

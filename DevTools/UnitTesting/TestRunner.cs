@@ -142,18 +142,19 @@ public sealed class TestRunner
     TestType currentTestType = TestType.MainMenu;
     foreach ((ITestGroup group, List<ITestFunction> functions) in filter(unitTestManager))
     {
-      if (StopRequested)
+      if (StopRequested || ShouldStop(group))
         break;
-      if (group.IsDisabled())
+      if (functions.NullOrEmpty() || group.IsDisabled())
         continue;
-      if (ShouldStop(group))
-        break;
 
       // Scene change for test type
       if (currentTestType != group.TestType)
       {
         currentTestType = group.TestType;
-        yield return SceneChangeRoutine(currentTestType, group.SaveFile);
+        if (!group.SaveFile.NullOrEmpty())
+          yield return LoadSaveRoutine(group.SaveFile);
+        else
+          yield return ChangeSceneRoutine(currentTestType);
       }
 
       try
@@ -244,7 +245,16 @@ public sealed class TestRunner
     return false;
   }
 
-  private IEnumerator SceneChangeRoutine(TestType testType, string saveFile = null)
+  private static IEnumerator LoadSaveRoutine(string saveFile)
+  {
+    using GenStepWarningDisabler gswd = new();
+    // Handle scene transition
+    Assert.IsTrue(!saveFile.NullOrEmpty());
+    GameDataSaveLoader.LoadGame(saveFile);
+    yield return WaitTillProgramState(ProgramState.Playing);
+  }
+
+  private IEnumerator ChangeSceneRoutine(TestType testType)
   {
     TestConfig config = unitTestManager.Config;
     switch (testType)
@@ -254,19 +264,8 @@ public sealed class TestRunner
           yield return LoadMainMenu();
       break;
       case TestType.Playing:
-
-        if (!saveFile.NullOrEmpty())
-        {
-          yield return LoadSaveRoutine(saveFile);
-        }
-        else if (Find.World == null)
-        {
-          yield return GenerateWorldRoutine(config.world, config.map);
-        }
-        else
-        {
-          yield return GenerateMapRoutine(config.map);
-        }
+        Assert.IsNull(Find.World);
+        yield return GenerateWorldRoutine(config.world, config.map);
       break;
       case TestType.PostGameExit:
         if (Current.ProgramState != ProgramState.Playing)
@@ -292,28 +291,11 @@ public sealed class TestRunner
       }
     }
 
-    static IEnumerator LoadSaveRoutine(string saveFile)
-    {
-      using GenStepWarningDisabler gswd = new();
-      // Handle scene transition
-      Assert.IsTrue(!saveFile.NullOrEmpty());
-      GameDataSaveLoader.LoadGame(saveFile);
-      yield return WaitTillProgramState(ProgramState.Playing);
-    }
-
     static IEnumerator GenerateWorldRoutine(WorldGenerationSettings worldGenSettings,
       MapGenerationSettings mapGenSettings)
     {
       using GenStepWarningDisabler gswd = new();
       GenerateWorld(worldGenSettings, mapGenSettings);
-      yield return WaitTillProgramState(ProgramState.Playing);
-    }
-
-    static IEnumerator GenerateMapRoutine(MapGenerationSettings mapGenSettings)
-    {
-      throw new NotImplementedException();
-      using GenStepWarningDisabler gswd = new();
-      //InitGame(mapGenSettings);
       yield return WaitTillProgramState(ProgramState.Playing);
     }
   }
@@ -327,10 +309,6 @@ public sealed class TestRunner
     }
     // Skip 1 extra frame to allow for game to execute its single tick on load
     yield return null;
-  }
-
-  private static void GenerateMap(MapGenerationSettings mapGenSettings)
-  {
   }
 
   private static void GenerateWorld(WorldGenerationSettings worldGenSettings,
