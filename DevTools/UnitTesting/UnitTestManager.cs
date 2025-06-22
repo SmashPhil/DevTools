@@ -260,7 +260,7 @@ public class UnitTestManager : IDevTool
     public string filterStr;
   }
 
-  internal class UnitTestEnabler : IDisposable
+  internal readonly struct UnitTestEnabler : IDisposable
   {
     // Disables Harmony's stack trace caching for full verbosity while conducting unit tests
     private readonly StackTraceCacheDisabler stcDisabler;

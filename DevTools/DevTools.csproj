@@ -77,7 +77,34 @@
             <HintPath>$(ManagedDirectory)\Assembly-CSharp.dll</HintPath>
             <Private>False</Private>
         </Reference>
-        <Reference Include="System.Runtime" />
+        <Reference Include="mscorlib">
+            <HintPath>$(ManagedDirectory)\mscorlib.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System">
+            <HintPath>$(ManagedDirectory)\System.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Core">
+            <HintPath>$(ManagedDirectory)\System.Core.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Data">
+            <HintPath>$(ManagedDirectory)\System.Data.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Runtime">
+            <HintPath>$(ManagedDirectory)\System.Runtime.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Runtime.Serialization">
+            <HintPath>$(ManagedDirectory)\System.Runtime.Serialization.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Xml">
+            <HintPath>$(ManagedDirectory)\System.Xml.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
         <Reference Include="UnityEngine.CoreModule">
             <HintPath>$(ManagedDirectory)\UnityEngine.CoreModule.dll</HintPath>
             <Private>False</Private>

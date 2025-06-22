@@ -20,7 +20,6 @@ internal class TestSelector : SelectionManager<ITestCase>
       new("Run Selected", unitTestManager.GetRunnerWith(SelectedFilter).Run);
     runSelectedOpt.Disabled = !AnySelected;
     options.Add(runSelectedOpt);
-
     Find.WindowStack.Add(new FloatMenu(options));
   }
 
