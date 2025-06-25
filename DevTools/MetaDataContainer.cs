@@ -17,7 +17,7 @@ public class MetaDataContainer
 
   public object GetRaw(int key)
   {
-    return metaDataLookup.TryGetValue(key, out object value) ? value : null;
+    return metaDataLookup.GetValueOrDefault(key);
   }
 
   public void Load(MemberInfo memberInfo)

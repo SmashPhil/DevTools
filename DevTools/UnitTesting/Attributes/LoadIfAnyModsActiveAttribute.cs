@@ -5,7 +5,7 @@ namespace DevTools.UnitTesting;
 
 [PublicAPI]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class LoadIfAnyModsActiveAttribute : MetaDataAttribute
+public class LoadIfAnyModsActiveAttribute : MetaDataAttribute<string[]>
 {
   public LoadIfAnyModsActiveAttribute(params string[] packageIds) : base(
     MetaDataName.LoadIfAnyModsActive, packageIds)

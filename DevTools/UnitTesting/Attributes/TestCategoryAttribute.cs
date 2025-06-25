@@ -3,9 +3,9 @@
 namespace DevTools.UnitTesting;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class TestCategoryAttribute : MetaDataAttribute
+public class TestCategoryAttribute : MetaDataAttribute<string[]>
 {
-  public TestCategoryAttribute(string category) : base(MetaDataName.Category, category)
+  public TestCategoryAttribute(string category) : base(MetaDataName.Category, [category])
   {
   }
 

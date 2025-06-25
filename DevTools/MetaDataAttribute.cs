@@ -3,9 +3,9 @@
 namespace DevTools;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public abstract class MetaDataAttribute : Attribute, IMetaData
+public abstract class MetaDataAttribute<T> : Attribute, IMetaData
 {
-  protected MetaDataAttribute(int key, object value)
+  protected MetaDataAttribute(int key, T value)
   {
     this.Key = key;
     this.Value = value;

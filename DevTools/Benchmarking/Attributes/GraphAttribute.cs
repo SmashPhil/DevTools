@@ -11,7 +11,7 @@ public enum GraphType
 }
 
 [AttributeUsage(AttributeTargets.Class)]
-public sealed class GraphAttribute : MetaDataAttribute
+public sealed class GraphAttribute : MetaDataAttribute<GraphType>
 {
   public GraphAttribute(GraphType graphType) : base(MetaDataName.Graph, graphType)
   {

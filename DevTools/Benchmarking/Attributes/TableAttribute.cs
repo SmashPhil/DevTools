@@ -13,7 +13,7 @@ public enum Stat
 }
 
 [AttributeUsage(AttributeTargets.Class)]
-public class TableAttribute : MetaDataAttribute
+public class TableAttribute : MetaDataAttribute<Stat>
 {
   public TableAttribute(Stat stats) : base(MetaDataName.Table, stats)
   {
