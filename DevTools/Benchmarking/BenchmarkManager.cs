@@ -141,12 +141,12 @@ internal class BenchmarkManager : IDevTool
       {
         case 0:
           method.Invoke(null, []);
-          break;
+        break;
         case 1:
           GenGeneric.InvokeStaticGenericMethod(
             typeof(BenchmarkManager),
             parameters[0].ParameterType, nameof(InvokeWithContext), type, method);
-          break;
+        break;
       }
     }
   }
@@ -170,13 +170,13 @@ internal class BenchmarkManager : IDevTool
       {
         case 0:
           resultsByMethod.Add((name, RunTest(method, sampleSize, measurement)));
-          break;
+        break;
         case 1:
           Result results = (Result)GenGeneric.InvokeStaticGenericMethod(
             typeof(BenchmarkManager), parameters[0].ParameterType, nameof(RunTestWithContext), type,
             method, sampleSize, measurement);
           resultsByMethod.Add((name, results));
-          break;
+        break;
       }
     }
     OutputResults(benchmarks, resultsByMethod);
@@ -311,10 +311,9 @@ internal class BenchmarkManager : IDevTool
           reason = "Context parameter must be passed by ref.";
           return false;
         }
-        if (pInfo.ParameterType.GetElementType() is null or { IsValueType: false } ||
-          !pInfo.ParameterType.IsDefined(typeof(IsReadOnlyAttribute)))
+        if (pInfo.ParameterType.GetElementType() is null or { IsValueType: false })
         {
-          reason = "Context type must be a readonly struct.";
+          reason = "Context type must be a struct.";
           return false;
         }
       }
