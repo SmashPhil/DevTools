@@ -8,20 +8,21 @@ using Verse;
 namespace DevTools.UnitTesting;
 
 [PublicAPI]
-public readonly struct TickObserver<T> : IDisposable where T : Entity
+public readonly struct TickIntervalObserver<T> : IDisposable where T : Entity
 {
   private static readonly Dictionary<T, int> TickCounters = [];
 
   private readonly T entity;
 
-  static TickObserver()
+  static TickIntervalObserver()
   {
-    Harmony harmony = new($"TickObserver_{typeof(T).Name}");
-    MethodInfo method = AccessTools.Method(typeof(T), "Tick");
-    harmony.Patch(method, postfix: new HarmonyMethod(typeof(TickObserver<T>), nameof(RecordTick)));
+    Harmony harmony = new($"TickIntervalObserver_{typeof(T).Name}");
+    MethodInfo method = AccessTools.Method(typeof(T), "TickInterval");
+    harmony.Patch(method,
+      postfix: new HarmonyMethod(typeof(TickObserver<T>), nameof(RecordTickInterval)));
   }
 
-  public TickObserver(T entity)
+  public TickIntervalObserver(T entity)
   {
     this.entity = entity;
     TickCounters[entity] = 0;
@@ -29,7 +30,7 @@ public readonly struct TickObserver<T> : IDisposable where T : Entity
 
   public int TickCount => TickCounters.TryGetValue(entity);
 
-  private static void RecordTick(T __instance)
+  private static void RecordTickInterval(T __instance)
   {
     if (TickCounters.ContainsKey(__instance))
     {
