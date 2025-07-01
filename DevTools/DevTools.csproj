@@ -7,7 +7,7 @@
         <FileVersion>1.6.0</FileVersion>
         <AssemblyVersion>1.6.0</AssemblyVersion>
         <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-        <Configurations>Debug;Release;Unstable</Configurations>
+        <Configurations>Debug;Release;Unstable;RelWithDbInfo</Configurations>
         <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
         <ProjectGuid>{CBD9893C-47BE-405E-89F7-2342F47D26BC}</ProjectGuid>
         <OutputType>Library</OutputType>
@@ -20,35 +20,33 @@
         <Deterministic>true</Deterministic>
         <OutDir>..\..\1.6\Assemblies\</OutDir>
         <ManagedDirectory>..\..\..\..\RimWorldWin64_Data\Managed</ManagedDirectory>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <WarningLevel>4</WarningLevel>
+        <NoWarn>CS0649</NoWarn>
+        <DebugType>portable</DebugType>
     </PropertyGroup>
 
     <!-- Configurations -->
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
         <DebugSymbols>true</DebugSymbols>
-        <DebugType>portable</DebugType>
         <Optimize>false</Optimize>
-        <OutputPath>..\..\1.6\Assemblies\</OutputPath>
         <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
-        <ErrorReport>prompt</ErrorReport>
-        <WarningLevel>4</WarningLevel>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <NoWarn>CS0649</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Unstable|AnyCPU' ">
+        <Optimize>true</Optimize>
+        <DefineConstants>TRACE;UNSTABLE;UNITY_ASSERTIONS;</DefineConstants>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDbInfo|AnyCPU'">
+        <DebugSymbols>true</DebugSymbols>
+        <Optimize>true</Optimize>
+        <DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS;</DefineConstants>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-        <DebugType>pdbonly</DebugType>
         <Optimize>true</Optimize>
-        <OutputPath>..\..\1.6\Assemblies\</OutputPath>
-        <DefineConstants>TRACE;UNITY_ASSERTIONS;</DefineConstants>
-        <ErrorReport>prompt</ErrorReport>
-        <WarningLevel>4</WarningLevel>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
-        <OutputPath>..\..\1.6\Assemblies\</OutputPath>
-        <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <DefineConstants>TRACE;UNITY_ASSERTIONS;UNITY_ASSERTIONS;</DefineConstants>
     </PropertyGroup>
 
     <!-- Dependencies -->
