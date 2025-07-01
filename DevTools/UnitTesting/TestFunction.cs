@@ -12,7 +12,7 @@ namespace DevTools.UnitTesting;
 [PublicAPI]
 public class TestFunction : ITestFunction, IComparable<TestFunction>
 {
-  private static readonly object[] emptyArgs = [];
+  private static readonly object[] EmptyArgs = [];
 
   private readonly object instance;
   private readonly MethodInfo method;
@@ -81,7 +81,7 @@ public class TestFunction : ITestFunction, IComparable<TestFunction>
     Root.Function = this;
     try
     {
-      method.Invoke(instance, emptyArgs);
+      method.Invoke(instance, EmptyArgs);
       ContextGroup.TabulateTestResultsRecursive(Root);
     }
     catch (TargetInvocationException ex) when (ex.InnerException is AssertionException)
@@ -112,7 +112,7 @@ public class TestFunction : ITestFunction, IComparable<TestFunction>
     Root.Function = this;
 
     Assert.AreEqual(method.ReturnType, typeof(IEnumerator));
-    IEnumerator enumerator = (IEnumerator)method.Invoke(instance, emptyArgs);
+    IEnumerator enumerator = (IEnumerator)method.Invoke(instance, EmptyArgs);
 
     while (true)
     {

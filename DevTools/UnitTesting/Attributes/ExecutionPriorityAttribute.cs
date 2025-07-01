@@ -5,19 +5,13 @@ namespace DevTools.UnitTesting;
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-public class ExecutionPriorityAttribute : Attribute, IMetaData
+public class ExecutionPriorityAttribute : MetaDataAttribute<int>
 {
-  public ExecutionPriorityAttribute(int priority)
+  public ExecutionPriorityAttribute(int priority) : base(MetaDataName.ExecutionPriority, priority)
   {
-    Key = MetaDataName.ExecutionPriority;
-    Value = priority;
   }
 
   public ExecutionPriorityAttribute(Priority priority) : this((int)priority)
   {
   }
-
-  public int Key { get; }
-
-  public object Value { get; }
 }
