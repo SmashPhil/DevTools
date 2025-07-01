@@ -7,7 +7,7 @@
         <FileVersion>1.6.0</FileVersion>
         <AssemblyVersion>1.6.0</AssemblyVersion>
         <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-        <Configurations>Debug;Release;Unstable;UnitTest;Benchmark</Configurations>
+        <Configurations>Debug;Release;Unstable</Configurations>
         <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
         <ProjectGuid>{CBD9893C-47BE-405E-89F7-2342F47D26BC}</ProjectGuid>
         <OutputType>Library</OutputType>
@@ -34,6 +34,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <NoWarn>CS0649</NoWarn>
     </PropertyGroup>
+
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
         <DebugType>pdbonly</DebugType>
         <Optimize>true</Optimize>
@@ -43,36 +44,20 @@
         <WarningLevel>4</WarningLevel>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
         <OutputPath>..\..\1.6\Assemblies\</OutputPath>
         <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'UnitTest|AnyCPU'">
-        <DebugSymbols>true</DebugSymbols>
-        <OutputPath>..\..\1.6\Assemblies\</OutputPath>
-        <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <NoWarn>CS0649</NoWarn>
-        <DebugType>portable</DebugType>
-        <PlatformTarget>AnyCPU</PlatformTarget>
-        <LangVersion>preview</LangVersion>
-        <ErrorReport>prompt</ErrorReport>
-    </PropertyGroup>
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Benchmark|AnyCPU'">
-        <OutputPath>..\..\1.6\Assemblies\</OutputPath>
-        <DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS;DEV_TOOLS;</DefineConstants>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <Optimize>true</Optimize>
-        <DebugType>pdbonly</DebugType>
-        <PlatformTarget>AnyCPU</PlatformTarget>
-        <LangVersion>preview</LangVersion>
-        <ErrorReport>prompt</ErrorReport>
-    </PropertyGroup>
 
     <!-- Dependencies -->
     <ItemGroup>
-        <PackageReference Include="Lib.Harmony" Version="2.3.6" ExcludeAssets="runtime" />
+        <PackageReference Include="Lib.Harmony" Version="2.3.6">
+            <IncludeAssets>compile; build</IncludeAssets>
+            <ExcludeAssets>runtime</ExcludeAssets>
+        </PackageReference>
+
         <Reference Include="Assembly-CSharp">
             <HintPath>$(ManagedDirectory)\Assembly-CSharp.dll</HintPath>
             <Private>False</Private>
