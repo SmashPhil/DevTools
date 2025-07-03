@@ -9,7 +9,7 @@ namespace DevTools.UnitTesting;
 
 internal readonly struct LogWatcher : IDisposable
 {
-  private static readonly ConcurrentDictionary<LogType, List<LogEntry>> logCounts = [];
+  private static readonly ConcurrentDictionary<LogType, List<LogEntry>> LogCounts = [];
 
   private readonly ITestCase testCase;
 
@@ -22,14 +22,14 @@ internal readonly struct LogWatcher : IDisposable
   [MustUseReturnValue]
   public static List<LogEntry> LogsOfType(LogType type)
   {
-    return logCounts.TryGetValue(type, fallback: null);
+    return LogCounts.TryGetValue(type, fallback: null);
   }
 
   private static void LogReceived(string msg, string stackTrace, LogType type)
   {
-    if (!logCounts.ContainsKey(type))
-      logCounts[type] = [];
-    logCounts[type].Add(new LogEntry(msg, stackTrace));
+    if (!LogCounts.ContainsKey(type))
+      LogCounts[type] = [];
+    LogCounts[type].Add(new LogEntry(msg, stackTrace));
   }
 
   void IDisposable.Dispose()
@@ -38,7 +38,7 @@ internal readonly struct LogWatcher : IDisposable
     {
       testCase.VerifyLogs(LogType.Warning);
       testCase.VerifyLogs(LogType.Error);
-      logCounts.Clear();
+      LogCounts.Clear();
     }
     finally
     {

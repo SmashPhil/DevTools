@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using JetBrains.Annotations;
 using RimWorld;
 using UnityEngine;
@@ -22,9 +23,10 @@ public class UnitTestManager : IDevTool
 {
   private const string ManagerName = "Unit Test";
 
-  private static TestRunner currentTestRunner;
+  // Debugging only
+  internal static readonly bool BreakOnTestFailure;
 
-  internal static bool breakOnTestFailure;
+  private static TestRunner currentTestRunner;
 
   private ModContentPack mod;
   private TestConfig config;
@@ -66,8 +68,7 @@ public class UnitTestManager : IDevTool
       return false;
 
     UnitTestGroup testGroup = new(type, attr.Type);
-    if (!unitTests.ContainsKey(key))
-      unitTests[key] = testGroup;
+    unitTests.TryAdd(key, testGroup);
     testGroup.AddFromType(type);
     testGroup.MetaData.Load(type);
     return true;
@@ -185,6 +186,19 @@ public class UnitTestManager : IDevTool
   internal bool TryGetUnitTest(string fullName, out UnitTestGroup testGroup)
   {
     return unitTests.TryGetValue(fullName, out testGroup);
+  }
+
+  internal void TestRunnerFinished()
+  {
+    const string HeadlessArg = "-batchmode";
+
+    if (Environment.GetCommandLineArgs().Contains(HeadlessArg))
+    {
+      bool anyfailed = UnitTests.Any(group => group.Status == Status.Failed);
+      Application.Quit(anyfailed ? 1 : 0);
+      return;
+    }
+    OpenMenu();
   }
 
   public void OpenMenu()

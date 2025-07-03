@@ -125,14 +125,13 @@ public sealed class TestRunner
   {
     TestConfig config = unitTestManager.Config;
 
-    using UnitTestManager.UnitTestEnabler ute = new(this);
-    // Enables test logger, separate from unity log
+    // NOTE - Enable test logger first, UnitTestEnabler will invoke state change events which may want
+    // to write to the test log.
     using DevLog.Enabler logEnabler = new(config.log);
-
-    config.RunPreTests();
+    using UnitTestManager.UnitTestEnabler ute = new(this);
 
     // Running unit tests from command line will jump into this coroutine before Root.Start has a 
-    // chance to run. Skip 1 frame and then continue so all Root fields had a chance to initialize.
+    // chance to run. Skip 1 frame and then continue so all Root fields have a chance to initialize.
     yield return null;
 
     uint seed = config.randSeed ?? (uint)Rand.Int;
@@ -159,6 +158,7 @@ public sealed class TestRunner
 
       try
       {
+        config.RunPreTests();
         DevLog.WriteVerbose($"Setting up {group.Type.Name}");
         if (!group.SetUp())
         {
@@ -201,9 +201,24 @@ public sealed class TestRunner
       }
       finally
       {
-        DevLog.WriteVerbose($"Tearing down {group.Type.Name}");
-        if (!group.TearDown())
-          DevLog.Write($"Failed tear down of {group.Type.Name}!");
+        try
+        {
+          DevLog.WriteVerbose($"Tearing down {group.Type.Name}");
+          if (!group.TearDown())
+          {
+            string tearDownFail = $"Failed tear down of {group.Type.Name}!";
+            DevLog.Write(tearDownFail);
+            group.Fail(tearDownFail);
+          }
+
+          config.RunPostTests();
+        }
+        catch (Exception ex)
+        {
+          string error = $"Exception caught during tear down. Terminating test...\n{ex}";
+          DevLog.Write(error);
+          group.Fail(error);
+        }
       }
       if (ShouldStop(group))
         break;
@@ -221,8 +236,7 @@ public sealed class TestRunner
         yield return null;
       }
     }
-    config.RunPostTests();
-    unitTestManager.OpenMenu();
+    unitTestManager.TestRunnerFinished();
   }
 
   private bool ShouldStop(ITestGroup group)

@@ -51,25 +51,38 @@ public class TestConfig
     };
   }
 
-  internal void RunPreTests()
+  internal bool RunPreTests()
   {
+    bool success = true;
     if (!preTestActions.NullOrEmpty())
     {
       foreach (Action action in preTestActions)
       {
+        using Test.Group preTestGroup = new(action.Method.Name);
         action();
+        success &= !Test.CurrentGroup.Results.Exists(FailedResult);
       }
     }
+    return success;
   }
 
-  internal void RunPostTests()
+  internal bool RunPostTests()
   {
+    bool success = true;
     if (!postTestActions.NullOrEmpty())
     {
       foreach (Action action in postTestActions)
       {
+        using Test.Group postTestGroup = new(action.Method.Name);
         action();
+        success &= !Test.CurrentGroup.Results.Exists(FailedResult);
       }
     }
+    return success;
+  }
+
+  private static bool FailedResult(TestResult result)
+  {
+    return result.status == Status.Failed;
   }
 }

@@ -172,7 +172,7 @@ public static class Expect
     {
       StackTrace stackTrace = new(skipFrames, true);
       stackFrame = stackTrace.GetFrame(0);
-      if (status is Status.Failed && Debugger.IsAttached && UnitTestManager.breakOnTestFailure)
+      if (status is Status.Failed && Debugger.IsAttached && UnitTestManager.BreakOnTestFailure)
         Debugger.Break();
       DevLog.Write(stackTrace.ToString());
     }
