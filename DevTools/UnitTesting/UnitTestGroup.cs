@@ -173,6 +173,10 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
           Log.Error($"Unable to add {methodInfo.Name} to unit test. {reason}");
           return;
         }
+
+        if (!HasAllRequiredMods(methodInfo) || !HasAnyRequiredMods(methodInfo))
+          return;
+
         object instance = null;
         // Static types are both abstract and sealed
         if (declaringType.IsAbstract)
@@ -193,6 +197,35 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
         method.MetaData.Load(methodInfo);
         methodList.Add(method);
       }
+    }
+
+    bool HasAllRequiredMods(MethodInfo methodInfo)
+    {
+      if (methodInfo.TryGetAttribute<LoadIfModsActiveAttribute>() is { } loadIfModsActive &&
+        !loadIfModsActive.PackageIds.NullOrEmpty())
+      {
+        foreach (string packageId in loadIfModsActive.PackageIds)
+        {
+          if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) is null)
+            return false;
+        }
+      }
+      return true;
+    }
+
+    bool HasAnyRequiredMods(MethodInfo methodInfo)
+    {
+      if (methodInfo.TryGetAttribute<LoadIfAnyModsActiveAttribute>() is { } loadIfAnyModActive &&
+        !loadIfAnyModActive.PackageIds.NullOrEmpty())
+      {
+        foreach (string packageId in loadIfAnyModActive.PackageIds)
+        {
+          if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) != null)
+            return true;
+        }
+        return false;
+      }
+      return true;
     }
   }
 

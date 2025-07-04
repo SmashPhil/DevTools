@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using static DevTools.UnitTesting.Expression;
 
@@ -13,7 +12,7 @@ internal static class ExpressionGenerator
   {
     return key.ToLowerInvariant() switch
     {
-      "category"  => new MetaDataExpression(MetaDataName.Category),
+      "category"  => new CategoryExpression(MetaDataName.Category),
       "method"    => new MethodExpression(),
       "class"     => new TypeExpression(),
       "namespace" => new NamespaceExpression(),
