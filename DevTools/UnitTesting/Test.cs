@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections;
+using System.Threading;
 using JetBrains.Annotations;
+using UnityEngine;
 using UnityEngine.Assertions;
 using Verse;
 
 namespace DevTools.UnitTesting;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+[PublicAPI]
 public static class Test
 {
   // There should always be 1 group if testing is in progress, an empty one will be used
@@ -59,10 +61,21 @@ public static class Test
     Expect.SendSignal(Status.Skipped, "Test.Skip", message, skipFrames: 2);
   }
 
-  // TODO
-  public static IEnumerator Suspend(string message, float secondsTimeOut)
+  public static IEnumerator Suspend(float secondsTimeOut, string message = null)
   {
-    yield break;
+    const int SecondsToMS = 1000;
+    const int MaxTimeOut = 10 * 60 * SecondsToMS; // 10 minutes
+
+    Assert.IsTrue(secondsTimeOut > 0);
+    int maxTimeOut = Mathf.CeilToInt(MaxTimeOut);
+    int countdownTime = Mathf.Min(Mathf.CeilToInt(secondsTimeOut), maxTimeOut);
+    using CancellationTokenSource token = new(maxTimeOut);
+
+    Dialog_TestSuspension dlg = new(message, countdownTime, token);
+    Find.WindowStack.Add(dlg);
+    while (!token.IsCancellationRequested)
+      yield return null;
+    Find.WindowStack.TryRemove(dlg);
   }
 
   public readonly struct Group : IDisposable
