@@ -23,7 +23,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <WarningLevel>4</WarningLevel>
         <NoWarn>CS0649</NoWarn>
-        <DebugType>portable</DebugType>
+        <DebugType>embedded</DebugType>
     </PropertyGroup>
 
     <!-- Configurations -->
