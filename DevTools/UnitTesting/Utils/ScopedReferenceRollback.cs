@@ -48,7 +48,7 @@ public readonly struct ScopedReferenceRollback<T, F> : IDisposable where T : cla
   /// <summary>
   /// Restores the field on the original instance to its captured value.
   /// </summary>
-  void IDisposable.Dispose()
+  public void Dispose()
   {
     fieldRef(instance) = oldValue;
   }
