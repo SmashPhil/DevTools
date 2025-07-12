@@ -22,6 +22,7 @@
         <ManagedDirectory>..\..\..\..\RimWorldWin64_Data\Managed</ManagedDirectory>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <WarningLevel>4</WarningLevel>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <NoWarn>CS0649</NoWarn>
         <DebugType>embedded</DebugType>
     </PropertyGroup>
