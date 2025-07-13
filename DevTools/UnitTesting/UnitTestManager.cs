@@ -68,9 +68,11 @@ public class UnitTestManager : IDevTool
       return false;
 
     UnitTestGroup testGroup = new(type, attr.Type);
+    testGroup.MetaData.Load(type);
+    if (testGroup.MetaData.Get<bool>(MetaDataName.Disabled))
+      return false;
     unitTests.TryAdd(key, testGroup);
     testGroup.AddFromType(type);
-    testGroup.MetaData.Load(type);
     return true;
   }
 
