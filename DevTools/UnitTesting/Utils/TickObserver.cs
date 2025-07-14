@@ -61,7 +61,7 @@ public readonly struct TickObserver<T> : IDisposable where T : Entity
   /// <summary>
   /// Disposes the observer, removing the entity from the recorded tick counters.
   /// </summary>
-  void IDisposable.Dispose()
+  public void Dispose()
   {
     TickCounters.Remove(entity);
   }
