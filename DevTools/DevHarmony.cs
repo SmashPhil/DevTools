@@ -16,6 +16,7 @@ internal static class DevHarmony
 
   private static readonly Dictionary<ModContentPack, List<IDevTool>> modDevTools = [];
 
+  // NOTE - this should be initialized from SCOS so dev tools static constructors have access to Defs
   static DevHarmony()
   {
     Harmony.Patch(
