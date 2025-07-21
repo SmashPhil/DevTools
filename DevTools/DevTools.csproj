@@ -63,7 +63,9 @@
             <IncludeAssets>compile; build</IncludeAssets>
             <ExcludeAssets>runtime</ExcludeAssets>
         </PackageReference>
+        <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4523" />
 
+        <!--
         <Reference Include="Assembly-CSharp">
             <HintPath>$(ManagedDirectory)\Assembly-CSharp.dll</HintPath>
             <Private>False</Private>
@@ -116,6 +118,7 @@
             <HintPath>$(ManagedDirectory)\UnityEngine.TextRenderingModule.dll</HintPath>
             <Private>False</Private>
         </Reference>
+        -->
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="Images/Icon_TestPassed.png" />
