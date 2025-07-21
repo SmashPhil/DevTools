@@ -7,11 +7,10 @@ using Verse;
 namespace DevTools.UnitTesting;
 
 /// <summary>
-/// Temporarily suppresses warnings emitted by <see cref="GenStep_Scatterer"/>'s
-/// <c>warnOnFail</c> flag during small-map test setups, preventing test-run failures
-/// when scatterer cannot find valid placement locations.  Restores original settings
-/// when disposed.
+/// Suppresses warnings emitted by <see cref="GenStep_Scatterer"/>'s <c>warnOnFail</c> flag during small-map
+/// test setups, preventing test-run failures when scatterer cannot find valid placement locations.
 /// </summary>
+/// <remarks>Restores original settings when disposed.</remarks>
 [PublicAPI]
 public readonly struct GenStepWarningDisabler : IDisposable
 {
