@@ -7,7 +7,6 @@ using System.Reflection;
 using DevTools.Benchmarking;
 using JetBrains.Annotations;
 using UnityEngine;
-using UnityEngine.Assertions;
 using Verse;
 
 namespace DevTools.UnitTesting;
@@ -183,7 +182,8 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
         {
           // Only static types should be getting added as a unit test method if the type
           // is abstract, otherwise we wouldn't be able to invoke the method.
-          Assert.IsTrue(declaringType.IsSealed);
+          if (!declaringType.IsSealed)
+            Log.Error("Trying to instantiate abstract type for unit testing.");
         }
         else
         {

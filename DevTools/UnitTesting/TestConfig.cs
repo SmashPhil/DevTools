@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using JetBrains.Annotations;
 using UnityEngine;
 using Verse;
@@ -29,6 +30,28 @@ public class TestConfig
   public List<Action> preTestActions;
   public List<Action> postTestActions;
 
+  private List<Regex> WarningRegexes { get; } = [];
+
+  private List<Regex> ErrorRegexes { get; } = [];
+
+  internal void PostLoad()
+  {
+    if (!warningsAllowed.NullOrEmpty())
+    {
+      foreach (string regex in warningsAllowed)
+      {
+        WarningRegexes.Add(new Regex(regex, RegexOptions.Compiled));
+      }
+    }
+    if (!errorsAllowed.NullOrEmpty())
+    {
+      foreach (string regex in errorsAllowed)
+      {
+        ErrorRegexes.Add(new Regex(regex, RegexOptions.Compiled));
+      }
+    }
+  }
+
   internal bool VerifyForLogType(LogType logType)
   {
     return logType switch
@@ -43,12 +66,29 @@ public class TestConfig
 
   internal bool LogContained(LogType logType, string message)
   {
-    return logType switch
+    switch (logType)
     {
-      LogType.Error   => errorsAllowed.NotNullAndContains(message),
-      LogType.Warning => warningsAllowed.NotNullAndContains(message),
-      _               => false
-    };
+      case LogType.Assert:
+      case LogType.Exception:
+      case LogType.Error:
+        foreach (Regex regex in ErrorRegexes)
+        {
+          if (regex.IsMatch(message))
+            return true;
+        }
+        return false;
+      case LogType.Warning:
+        foreach (Regex regex in WarningRegexes)
+        {
+          if (regex.IsMatch(message))
+            return true;
+        }
+        return false;
+      case LogType.Log:
+        return false;
+      default:
+        throw new NotImplementedException(nameof(LogType));
+    }
   }
 
   internal bool RunPreTests()

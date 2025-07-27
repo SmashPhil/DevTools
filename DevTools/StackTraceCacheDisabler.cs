@@ -8,7 +8,7 @@ namespace DevTools;
 
 public readonly struct StackTraceCacheDisabler : IDisposable
 {
-  private static readonly FieldInfo noStacktraceCaching;
+  private static readonly FieldInfo NoStacktraceCaching;
 
   private readonly bool oldValue;
 
@@ -16,18 +16,18 @@ public readonly struct StackTraceCacheDisabler : IDisposable
   {
     Type harmonyMain = GenTypes.GetTypeInAnyAssembly("HarmonyMod.HarmonyMain");
     Assert.IsNotNull(harmonyMain);
-    noStacktraceCaching = AccessTools.Field(harmonyMain, "noStacktraceCaching");
-    Assert.IsNotNull(noStacktraceCaching);
+    NoStacktraceCaching = AccessTools.Field(harmonyMain, "noStacktraceCaching");
+    Assert.IsNotNull(NoStacktraceCaching);
   }
 
   public StackTraceCacheDisabler()
   {
-    oldValue = (bool)noStacktraceCaching.GetValue(null);
-    noStacktraceCaching.SetValue(null, true);
+    oldValue = (bool)NoStacktraceCaching.GetValue(null);
+    NoStacktraceCaching.SetValue(null, true);
   }
 
   public void Dispose()
   {
-    noStacktraceCaching.SetValue(null, oldValue);
+    NoStacktraceCaching.SetValue(null, oldValue);
   }
 }

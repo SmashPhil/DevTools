@@ -61,7 +61,7 @@ public class UnitTestManager : IDevTool
   bool IDevTool.TryRegisterType(Type type)
   {
     UnitTestAttribute attr = type.TryGetAttribute<UnitTestAttribute>();
-    if (attr is null)
+    if (attr is null || type.IsAbstract)
       return false;
     string key = type.FullName;
     if (key == null)
@@ -178,6 +178,7 @@ public class UnitTestManager : IDevTool
     if (file.Exists)
     {
       config = DirectXmlLoader.ItemFromXmlFile<TestConfig>(file.FullName);
+      config?.PostLoad();
       if (config == null)
         Log.Warning($"[{mod.PackageIdPlayerFacing}] Unable to load test config.");
     }
