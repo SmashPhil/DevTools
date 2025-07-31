@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using JetBrains.Annotations;
 using RimWorld;
 using UnityEngine;
@@ -66,6 +67,8 @@ public class UnitTestManager : IDevTool
     string key = type.FullName;
     if (key == null)
       return false;
+    if (!HasAllRequiredMods(type) || !HasAnyRequiredMods(type))
+      return false;
 
     UnitTestGroup testGroup = new(type, attr.Type);
     testGroup.MetaData.Load(type);
@@ -91,6 +94,35 @@ public class UnitTestManager : IDevTool
     LoadConfig();
     ReloadTestPlans();
     ExecuteCommandLineArgs();
+  }
+
+  internal static bool HasAllRequiredMods(MemberInfo memberInfo)
+  {
+    if (memberInfo.TryGetAttribute<LoadIfModsActiveAttribute>() is { } loadIfModsActive &&
+      !loadIfModsActive.PackageIds.NullOrEmpty())
+    {
+      foreach (string packageId in loadIfModsActive.PackageIds)
+      {
+        if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) is null)
+          return false;
+      }
+    }
+    return true;
+  }
+
+  internal static bool HasAnyRequiredMods(MemberInfo memberInfo)
+  {
+    if (memberInfo.TryGetAttribute<LoadIfAnyModsActiveAttribute>() is { } loadIfAnyModActive &&
+      !loadIfAnyModActive.PackageIds.NullOrEmpty())
+    {
+      foreach (string packageId in loadIfAnyModActive.PackageIds)
+      {
+        if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) != null)
+          return true;
+      }
+      return false;
+    }
+    return true;
   }
 
   private void ExecuteCommandLineArgs()

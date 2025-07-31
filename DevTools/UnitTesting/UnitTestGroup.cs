@@ -173,7 +173,7 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
           return;
         }
 
-        if (!HasAllRequiredMods(methodInfo) || !HasAnyRequiredMods(methodInfo))
+        if (!UnitTestManager.HasAllRequiredMods(methodInfo) || !UnitTestManager.HasAnyRequiredMods(methodInfo))
           return;
 
         object instance = null;
@@ -197,35 +197,6 @@ internal class UnitTestGroup : ITestGroup, IComparable<UnitTestGroup>
         method.MetaData.Load(methodInfo);
         methodList.Add(method);
       }
-    }
-
-    bool HasAllRequiredMods(MethodInfo methodInfo)
-    {
-      if (methodInfo.TryGetAttribute<LoadIfModsActiveAttribute>() is { } loadIfModsActive &&
-        !loadIfModsActive.PackageIds.NullOrEmpty())
-      {
-        foreach (string packageId in loadIfModsActive.PackageIds)
-        {
-          if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) is null)
-            return false;
-        }
-      }
-      return true;
-    }
-
-    bool HasAnyRequiredMods(MethodInfo methodInfo)
-    {
-      if (methodInfo.TryGetAttribute<LoadIfAnyModsActiveAttribute>() is { } loadIfAnyModActive &&
-        !loadIfAnyModActive.PackageIds.NullOrEmpty())
-      {
-        foreach (string packageId in loadIfAnyModActive.PackageIds)
-        {
-          if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) != null)
-            return true;
-        }
-        return false;
-      }
-      return true;
     }
   }
 
