@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using JetBrains.Annotations;
 using UnityEngine;
+using Verse;
 using ThreadPriority = System.Threading.ThreadPriority;
 
 // ReSharper disable ExtractCommonBranchingCode
@@ -28,34 +29,45 @@ public static class Benchmark
 #if RELEASE
     if (Debugger.IsAttached)
     {
-      Verse.Log.WarningOnce(
+      Log.WarningOnce(
         "Benchmarks should not be executed with debugger attached. The results will be wildly inaccurate.",
         "Benchmark.DebuggerAttached".GetHashCode());
     }
 #endif
   }
 
-  private static int GetPartitionedArrays(int sampleSize, out int[] thresholds, out long[] overhead,
+  private static void GetPartitionedArrays(int sampleSize, int partitions, out int[] thresholds, out long[] overhead,
     out long[] results)
   {
-    int partitions = Mathf.Min(Mathf.Max(10, sampleSize / 1000), sampleSize);
-
     thresholds = new int[partitions];
     for (int i = 0; i < partitions; i++)
       thresholds[i] = Mathf.CeilToInt(sampleSize * (float)(i + 1) / partitions);
     overhead = new long[partitions];
     results = new long[partitions];
-    return partitions;
+  }
+
+  private static (int sampleSize, int partitions) GetSampleSize(long ticks)
+  {
+    return Result.ToMicroseconds(ticks) switch
+    {
+      > 10_000 => (sampleSize: 10_000, partitions: 10),
+      > 1_000  => (sampleSize: 100_000, partitions: 20),
+      > 100    => (sampleSize: 250_000, partitions: 50),
+      // Getting closer to Stopwatch granularity, more aggression on sample size to drown out overhead from Stopwatch.
+      > 10 => (sampleSize: 10_000_000, partitions: 100),
+      > 1  => (sampleSize: 100_000_000, partitions: 500),
+      // Micro-benchmarking, requires strong amortization to get even remotely close to usable results. Anything less
+      // than ~25% std. dev is statistically irrelevant and heavy noise here WILL blow that number out of the park.
+      _ => (sampleSize: 500_000_000, partitions: 1_000)
+    };
   }
 
   /// <returns>
-  /// Time to run N <paramref name="sampleSize"/> of <paramref name="function"/> 
+  /// Time to execute <paramref name="function"/> 
   /// </returns>
   /// <param name="function">Function to execute each iteration.</param>
-  /// <param name="sampleSize">Number of times to run this benchmark test.</param>
   /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-  public static unsafe Result Run(delegate*<void> function, int sampleSize,
-    Measurement measurement = Measurement.Auto)
+  public static unsafe Result Run(delegate*<void> function, Measurement measurement = Measurement.Auto)
   {
     ShowWarnings();
 
@@ -68,8 +80,8 @@ public static class Benchmark
     function();
     noOp();
 
-    int partitions = GetPartitionedArrays(sampleSize, out int[] thresholds, out long[] overhead,
-      out long[] results);
+    (int sampleSize, int partitions) = EstimateSampleSize(function);
+    GetPartitionedArrays(sampleSize, partitions, out int[] thresholds, out long[] overhead, out long[] results);
 
     // Do a pass right before we enter a no GC region
     GC.Collect();
@@ -86,6 +98,33 @@ public static class Benchmark
       results[i] = Math.Max(0, results[i] - overhead[i]);
 
     return new Result(results, sampleSize, measurement);
+
+    static (int sampleSize, int partitions) EstimateSampleSize(delegate*<void> function)
+    {
+      const int TestInterval = 5;
+      const int EstimateIterations = 1000;
+
+      // Ensure we're not jumping into expensive benchmark
+      Stopwatch watch = Stopwatch.StartNew();
+      for (int i = 0; i < TestInterval; i++)
+        function();
+      watch.Stop();
+
+      // Max cutoff is 100ms per iteration. This is high enough that we could be measuring on individual calls
+      if (watch.ElapsedMilliseconds > 100 * TestInterval)
+      {
+        Log.Warning(
+          "Running benchmark on function that takes a long time to execute. To keep results reliable, iterations cannot be lowered further.");
+        return (sampleSize: 100, partitions: 10);
+      }
+
+      // Estimate
+      watch.Restart();
+      for (int i = 0; i < EstimateIterations; i++)
+        function();
+      watch.Stop();
+      return GetSampleSize(watch.ElapsedTicks);
+    }
 
     // Stub for function invocation and loop overhead
     static void NoOp()
@@ -148,15 +187,13 @@ public static class Benchmark
   }
 
   /// <returns>
-  /// Time to run N <paramref name="sampleSize"/> of <paramref name="function"/> 
+  /// Time to execute <paramref name="function"/> 
   /// </returns>
   /// <param name="function">Function to execute each iteration.</param>
   /// <param name="context">Object passed in with each function call.</param>
-  /// <param name="sampleSize">Number of times to run this benchmark test.</param>
   /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-  public static unsafe Result Run<T>(delegate*<ref T, void> function, T context, int sampleSize,
-    Measurement measurement = Measurement.Auto)
-    where T : struct
+  public static unsafe Result Run<T>(delegate*<ref T, void> function, T context,
+    Measurement measurement = Measurement.Auto) where T : struct
   {
     ShowWarnings();
 
@@ -169,8 +206,8 @@ public static class Benchmark
     function(ref context);
     noOp(ref context);
 
-    int partitions = GetPartitionedArrays(sampleSize, out int[] thresholds, out long[] overhead,
-      out long[] results);
+    (int sampleSize, int partitions) = EstimateSampleSize(function, ref context);
+    GetPartitionedArrays(sampleSize, partitions, out int[] thresholds, out long[] overhead, out long[] results);
 
     // Do a pass right before we start measuring
     GC.Collect();
@@ -184,6 +221,33 @@ public static class Benchmark
       results[i] = Math.Max(0, results[i] - overhead[i]);
 
     return new Result(results, sampleSize, measurement);
+
+    static (int sampleSize, int partitions) EstimateSampleSize(delegate*<ref T, void> function, ref T context)
+    {
+      const int TestInterval = 5;
+      const int EstimateIterations = 1000;
+
+      // Ensure we're not jumping into expensive benchmark
+      Stopwatch watch = Stopwatch.StartNew();
+      for (int i = 0; i < TestInterval; i++)
+        function(ref context);
+      watch.Stop();
+
+      // Max cutoff is 100ms per iteration. This is high enough that we could be measuring on individual calls
+      if (watch.ElapsedMilliseconds > 100 * TestInterval)
+      {
+        Log.Warning(
+          "Running benchmark on function that takes a long time to execute. To keep results reliable, iterations cannot be lowered further.");
+        return (sampleSize: 100, partitions: 10);
+      }
+
+      // Estimate
+      watch.Restart();
+      for (int i = 0; i < EstimateIterations; i++)
+        function(ref context);
+      watch.Stop();
+      return GetSampleSize(watch.ElapsedTicks);
+    }
 
     // Stub for function invocation and loop overhead
     static void NoOp(ref T _)
@@ -246,18 +310,15 @@ public static class Benchmark
   }
 
   /// <returns>
-  /// Time to run N <paramref name="sampleSize"/> of <paramref name="function"/> 
+  /// Time to execute <paramref name="function"/> 
   /// </returns>
   /// <remarks>
-  /// Uses delegate for benchmarking non-static functions or functions that need 
-  /// to capture. This implementation will have lower accuracy due to the additional 
-  /// cost of indirection and closures.
+  /// Uses delegate for benchmarking non-static functions or functions that use closure. This implementation will
+  /// have lower accuracy due to the overhead of indirection and closure.
   /// </remarks>
   /// <param name="function">Function to execute each iteration.</param>
-  /// /// <param name="sampleSize">Number of times to run this benchmark test.</param>
   /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-  public static Result Run(Action function, int sampleSize,
-    Measurement measurement = Measurement.Auto)
+  public static Result Run(Action function, Measurement measurement = Measurement.Auto)
   {
     ShowWarnings();
 
@@ -268,8 +329,8 @@ public static class Benchmark
     function();
     NoOp();
 
-    int partitions = GetPartitionedArrays(sampleSize, out int[] thresholds, out long[] overhead,
-      out long[] results);
+    (int sampleSize, int partitions) = EstimateSampleSize(function);
+    GetPartitionedArrays(sampleSize, partitions, out int[] thresholds, out long[] overhead, out long[] results);
 
     // Do a pass right before we enter a no GC region
     GC.Collect();
@@ -287,6 +348,33 @@ public static class Benchmark
       results[i] = Math.Max(0, results[i] - medianOverhead);
 
     return new Result(results, sampleSize, measurement);
+
+    static (int sampleSize, int partitions) EstimateSampleSize(Action function)
+    {
+      const int TestInterval = 5;
+      const int EstimateIterations = 1000;
+
+      // Ensure we're not jumping into expensive benchmark
+      Stopwatch watch = Stopwatch.StartNew();
+      for (int i = 0; i < TestInterval; i++)
+        function();
+      watch.Stop();
+
+      // Max cutoff is 100ms per iteration. This is high enough that we could be measuring on individual calls
+      if (watch.ElapsedMilliseconds > 100 * TestInterval)
+      {
+        Log.Warning(
+          "Running benchmark on function that takes a long time to execute. To keep results reliable, iterations cannot be lowered further.");
+        return (sampleSize: 100, partitions: 10);
+      }
+
+      // Estimate
+      watch.Restart();
+      for (int i = 0; i < EstimateIterations; i++)
+        function();
+      watch.Stop();
+      return GetSampleSize(watch.ElapsedTicks);
+    }
 
     // Stub for function invocation and loop overhead
     static void NoOp()
@@ -357,7 +445,7 @@ public static class Benchmark
       Measurement.Microseconds => "\u00b5s",
       Measurement.Nanoseconds  => "ns",
       // Auto should never be retained, it should be auto converted when Result object is created
-      Measurement.Auto => throw new NotImplementedException(),
+      Measurement.Auto => throw new InvalidOperationException(nameof(measurement)),
       _                => throw new NotImplementedException(),
     };
   }
@@ -375,7 +463,7 @@ public static class Benchmark
   public readonly record struct Result
   {
     // ReSharper disable ConvertToAutoProperty
-    private static readonly Measurement[] orderedMeasurements =
+    private static readonly Measurement[] OrderedMeasurements =
     [
       Measurement.Seconds, Measurement.Milliseconds,
       Measurement.Microseconds, Measurement.Nanoseconds
@@ -444,7 +532,7 @@ public static class Benchmark
 
     private Measurement PreferredMeasurement()
     {
-      foreach (Measurement curMeasurement in orderedMeasurements)
+      foreach (Measurement curMeasurement in OrderedMeasurements)
       {
         double mTotal = Converted(Total, curMeasurement);
         double mMean = Converted(Mean, curMeasurement);
@@ -469,25 +557,25 @@ public static class Benchmark
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static double ToSeconds(double ticks)
+    internal static double ToSeconds(double ticks)
     {
       return ticks / Stopwatch.Frequency;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static double ToMilliseconds(double ticks)
+    internal static double ToMilliseconds(double ticks)
     {
       return ticks * 1000 / Stopwatch.Frequency;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static double ToMicroseconds(double ticks)
+    internal static double ToMicroseconds(double ticks)
     {
       return ticks * 1_000_000 / Stopwatch.Frequency;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static double ToNanoseconds(double ticks)
+    internal static double ToNanoseconds(double ticks)
     {
       return ticks * 1_000_000_000 / Stopwatch.Frequency;
     }

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 using LudeonTK;
 using RimWorld.Planet;
@@ -34,8 +33,7 @@ internal class BenchmarkManager : IDevTool
       throw new NullReferenceException(nameof(category));
 
     BenchmarkMethods benchmarkMethods = new(category, classAttr);
-    if (!benchmarks.ContainsKey(category))
-      benchmarks[category] = benchmarkMethods;
+    benchmarks.TryAdd(category, benchmarkMethods);
     benchmarkMethods.AddFromType(type);
     benchmarkMethods.MetaData.Load(type);
     return true;
@@ -163,18 +161,17 @@ internal class BenchmarkManager : IDevTool
     {
       LongEventHandler.SetCurrentEventText($"Running {name}");
       ParameterInfo[] parameters = method.GetParameters();
-      int sampleSize = benchmarks.MetaData.Get(MetaDataName.SampleSize, fallback: 1);
       Benchmark.Measurement measurement =
         benchmarks.MetaData.Get(MetaDataName.Measurement, Benchmark.Measurement.Auto);
       switch (parameters.Length)
       {
         case 0:
-          resultsByMethod.Add((name, RunTest(method, sampleSize, measurement)));
+          resultsByMethod.Add((name, RunTest(method, measurement)));
         break;
         case 1:
           Result results = (Result)GenGeneric.InvokeStaticGenericMethod(
             typeof(BenchmarkManager), parameters[0].ParameterType, nameof(RunTestWithContext), type,
-            method, sampleSize, measurement);
+            method, measurement);
           resultsByMethod.Add((name, results));
         break;
       }
@@ -182,23 +179,22 @@ internal class BenchmarkManager : IDevTool
     OutputResults(benchmarks, resultsByMethod);
   }
 
-  private static unsafe Result RunTest(MethodInfo method, int sampleSize,
-    Benchmark.Measurement measurement)
+  private static unsafe Result RunTest(MethodInfo method, Benchmark.Measurement measurement)
   {
     Assert.IsTrue(method.GetParameters().NullOrEmpty());
     delegate*<void> funcPtr = (delegate*<void>)method.MethodHandle.GetFunctionPointer();
-    return Benchmark.Run(funcPtr, sampleSize, measurement);
+    return Benchmark.Run(funcPtr, measurement);
   }
 
   private static unsafe Result RunTestWithContext<T>(Type declaringType, MethodInfo method,
-    int sampleSize, Benchmark.Measurement measurement) where T : struct
+    Benchmark.Measurement measurement) where T : struct
   {
     // sanity check
     Assert.IsTrue(method.GetParameters().Length == 1);
 
     delegate*<ref T, void> funcPtr =
       (delegate*<ref T, void>)method.MethodHandle.GetFunctionPointer();
-    return Benchmark.Run(funcPtr, GetContext<T>(declaringType), sampleSize, measurement);
+    return Benchmark.Run(funcPtr, GetContext<T>(declaringType), measurement);
   }
 
   private static T GetContext<T>(Type declaringType) where T : struct
