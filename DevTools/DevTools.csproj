@@ -6,8 +6,9 @@
         <Product>DevTools</Product>
         <FileVersion>1.6.0</FileVersion>
         <AssemblyVersion>1.6.0</AssemblyVersion>
+
         <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-        <Configurations>Debug;Release;Unstable;RelWithDbInfo</Configurations>
+        <Configurations>Debug;Unstable;Release;ReleaseTesting</Configurations>
         <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
         <ProjectGuid>{CBD9893C-47BE-405E-89F7-2342F47D26BC}</ProjectGuid>
         <OutputType>Library</OutputType>
@@ -37,19 +38,20 @@
     <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
         <DebugSymbols>true</DebugSymbols>
         <Optimize>true</Optimize>
-        <DefineConstants>TRACE;UNSTABLE;UNITY_ASSERTIONS;DEV_TOOLS;</DefineConstants>
+        <DefineConstants>TRACE;UNSTABLE;UNITY_ASSERTIONS</DefineConstants>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDbInfo|AnyCPU'">
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
         <DebugSymbols>true</DebugSymbols>
         <Optimize>true</Optimize>
-        <DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS;DEV_TOOLS</DefineConstants>
+        <DefineConstants>TRACE;RELEASE</DefineConstants>
     </PropertyGroup>
 
-    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-        <Optimize>true</Optimize>
-        <DefineConstants>TRACE;UNITY_ASSERTIONS;UNITY_ASSERTIONS;</DefineConstants>
-    </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseTesting|AnyCPU'">
+	  <DebugSymbols>true</DebugSymbols>
+	  <Optimize>true</Optimize>
+	  <DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS</DefineConstants>
+  </PropertyGroup>
 
     <!-- Dependencies -->
     <ItemGroup>
