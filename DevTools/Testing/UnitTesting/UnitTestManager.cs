@@ -1,0 +1,243 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using JetBrains.Annotations;
+using RimWorld;
+using UnityEngine;
+using Verse;
+
+namespace DevTools.UnitTesting;
+
+/// <summary>
+/// Test Manager for running unit tests in RimWorld. Tests can be ran in isolation or be executed
+/// as part of a test suite. This manager will handle switching between scenes and consolidating
+/// test results in an explorer widget, allowing you to view each test class and its results.
+/// <para/>
+/// Due to Unity being single threaded, tests are run synchronously. This will block the
+/// main thread and cause the application to hang for the duration of test execution. Because
+/// RimWorld is so tightly coupled it's impossible to predict where it might call to Unity's API.
+/// </summary>
+[PublicAPI]
+public class UnitTestManager : IDevTool
+{
+	private const string ManagerName = "Unit Test";
+
+	// Debugging only
+	internal static readonly bool BreakOnTestFailure;
+
+	private static TestRunner currentTestRunner;
+
+	private ModContentPack mod;
+	private TestConfig config;
+	private readonly Dictionary<string, UnitTestGroup> unitTests = [];
+	private readonly Dialog_TestExplorer testExplorer;
+
+	/// <summary>
+	/// Event for UnitTest state changes.
+	/// <para/>
+	/// This event will fire when unit testing begins, and again when it finishes.
+	/// </summary>
+	[PublicAPI]
+	public static event Action<bool> OnUnitTestStateChange;
+
+	public UnitTestManager()
+	{
+		testExplorer = new Dialog_TestExplorer(this);
+	}
+
+	public TestConfig Config => config;
+
+	internal IEnumerable<UnitTestGroup> UnitTests => unitTests.Values;
+
+	public static UnitTestManager CurrentActive => currentTestRunner?.unitTestManager;
+
+	public static bool RunningUnitTests => currentTestRunner != null;
+
+	string IDevTool.ToolName => ManagerName;
+
+	bool IDevTool.TryRegisterType(Type type)
+	{
+		UnitTestAttribute attr = type.TryGetAttribute<UnitTestAttribute>();
+		if (attr is null || type.IsAbstract)
+			return false;
+		string key = type.FullName;
+		if (key == null)
+			return false;
+		if (!HasAllRequiredMods(type) || !HasAnyRequiredMods(type))
+			return false;
+
+		UnitTestGroup testGroup = new(type, attr.Type);
+		testGroup.MetaData.Load(type);
+		if (testGroup.MetaData.Get<bool>(MetaDataName.Disabled))
+			return false;
+		unitTests.TryAdd(key, testGroup);
+		testGroup.AddFromType(type);
+		return true;
+	}
+
+	void IDevTool.Init(ModContentPack modContentPack)
+	{
+		mod = modContentPack;
+		foreach (UnitTestGroup testGroup in unitTests.Values)
+		{
+			if (testGroup.TestCount == 0)
+				Log.Warning($"{testGroup.Type.Name} has 0 tests. Execution will be skipped.");
+		}
+		foreach (UnitTestGroup testGroup in unitTests.Values)
+		{
+			testGroup.SortByExecutionPriority();
+		}
+		LoadConfig();
+	}
+
+	internal static bool HasAllRequiredMods(MemberInfo memberInfo)
+	{
+		if (memberInfo.TryGetAttribute<LoadIfModsActiveAttribute>() is { } loadIfModsActive &&
+			!loadIfModsActive.PackageIds.NullOrEmpty())
+		{
+			foreach (string packageId in loadIfModsActive.PackageIds)
+			{
+				if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) is null)
+					return false;
+			}
+		}
+		return true;
+	}
+
+	internal static bool HasAnyRequiredMods(MemberInfo memberInfo)
+	{
+		if (memberInfo.TryGetAttribute<LoadIfAnyModsActiveAttribute>() is { } loadIfAnyModActive &&
+			!loadIfAnyModActive.PackageIds.NullOrEmpty())
+		{
+			foreach (string packageId in loadIfAnyModActive.PackageIds)
+			{
+				if (ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) != null)
+					return true;
+			}
+			return false;
+		}
+		return true;
+	}
+
+	private void LoadConfig()
+	{
+		const string ConfigFileName = "TestConfig.xml";
+
+		FileInfo file = new(GenFile.ResolveCaseInsensitiveFilePath(mod.RootDir, ConfigFileName));
+		if (file.Exists)
+		{
+			config = DirectXmlLoader.ItemFromXmlFile<TestConfig>(file.FullName);
+			config?.PostLoad();
+			if (config == null)
+				Log.Warning($"[{mod.PackageIdPlayerFacing}] Unable to load test config.");
+		}
+		// Load defaults
+		config ??= new TestConfig();
+	}
+
+	internal bool TryGetUnitTest(string fullName, out UnitTestGroup testGroup)
+	{
+		return unitTests.TryGetValue(fullName, out testGroup);
+	}
+
+	internal void TestRunnerFinished()
+	{
+		const string HeadlessArg = "-batchmode";
+
+		if (Environment.GetCommandLineArgs().Contains(HeadlessArg))
+		{
+			bool anyfailed = UnitTests.Any(group => group.Status == Status.Failed);
+			Application.Quit(anyfailed ? 1 : 0);
+			return;
+		}
+		OpenMenu();
+	}
+
+	public void OpenMenu()
+	{
+		Find.WindowStack.Add(testExplorer);
+	}
+
+	public void OpenLogFile()
+	{
+		if (!File.Exists(Config.log.FullPath))
+		{
+			Messages.Message("No log file to open.", MessageTypeDefOf.RejectInput);
+			return;
+		}
+		Application.OpenURL(Config.log.FullPath);
+	}
+
+	public void ClearTestResults()
+	{
+		// Parents should propagate their reset to containing functions / groups
+		foreach (ITestGroup testGroup in unitTests.Values)
+			testGroup.Reset();
+	}
+
+	public TestRunner GetRunnerWith([NotNull] TestFilter filter)
+	{
+		return new TestRunner(this, filter);
+	}
+
+	public TestRunner GetRunnerWith([NotNull] ExpressionTree expressionTree)
+	{
+		return new TestRunner(this, expressionTree);
+	}
+
+	public TestRunner GetRunnerWith<T>(Expression.Comparison comparison, string value)
+		where T : Expression, new()
+	{
+		return GetRunnerWith(new T(), comparison, value);
+	}
+
+	public TestRunner GetRunnerWith(Expression expression, Expression.Comparison comparison,
+		string value)
+	{
+		ExpressionTree tree = new();
+		tree.Add(expression, comparison, value);
+		return new TestRunner(this, tree);
+	}
+
+	public void RunAll()
+	{
+		new TestRunner(this).Run();
+	}
+
+	public void StopTesting()
+	{
+		if (!RunningUnitTests)
+			return;
+		currentTestRunner.SignalToStop();
+	}
+
+	private static void TestExceptionHandler(Exception ex)
+	{
+		DelayedErrorWindowRequest.Add($"Exception thrown while running tests.\n{ex}",
+			"UnitTestManager Aborted Operation");
+		Scribe.ForceStop();
+		GenScene.GoToMainMenu();
+	}
+
+	internal readonly struct UnitTestEnabler : IDisposable
+	{
+		// Disables Harmony's stack trace caching for full verbosity while conducting unit tests
+		private readonly StackTraceCacheDisabler stcDisabler;
+
+		public UnitTestEnabler(TestRunner runner)
+		{
+			stcDisabler = new StackTraceCacheDisabler();
+			currentTestRunner = runner;
+			OnUnitTestStateChange?.Invoke(true);
+		}
+
+		void IDisposable.Dispose()
+		{
+			stcDisabler.Dispose();
+			currentTestRunner = null;
+			OnUnitTestStateChange?.Invoke(false);
+		}
+	}
+}
