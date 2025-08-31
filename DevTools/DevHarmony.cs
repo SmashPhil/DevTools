@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DevTools.Benchmarking;
-using DevTools.UnitTesting;
+using DevTools.Testing;
 using HarmonyLib;
 using LudeonTK;
 using Verse;
@@ -56,6 +56,7 @@ internal static class DevHarmony
 			[
 				CreateDevTool<BenchmarkManager>(),
 				CreateDevTool<UnitTestManager>(),
+				CreateDevTool<SmokeTestManager>()
 			];
 			bool anyRegistered = false;
 			foreach (Type type in mod.assemblies.loadedAssemblies.SelectMany(assembly =>
@@ -108,8 +109,11 @@ internal static class DevHarmony
 		List<DebugMenuOption> toolOptions = [];
 		foreach (IDevTool tool in ModDevTools[mod])
 		{
-			toolOptions.Add(new DebugMenuOption(tool.ToolName, DebugMenuOptionMode.Action,
-				tool.OpenMenu));
+			if (tool is not IDevToolWithMenu devToolWithMenu)
+				continue;
+
+			toolOptions.Add(new DebugMenuOption(devToolWithMenu.Name, DebugMenuOptionMode.Action,
+				devToolWithMenu.OpenMenu));
 		}
 		Find.WindowStack.Add(new Dialog_DebugOptionListLister(toolOptions, "Tools"));
 	}

@@ -121,6 +121,7 @@
         <EmbeddedResource Include="Images/Icon_TestFailed.png" />
         <EmbeddedResource Include="Images/Icon_TestRunning.png" />
         <EmbeddedResource Include="Images/Icon_TestCanceled.png" />
+        <EmbeddedResource Include="Images/Icon_TestNotRan.png" />
     </ItemGroup>
     <ItemGroup>
       <Folder Include="Properties\" />

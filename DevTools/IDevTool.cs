@@ -5,11 +5,7 @@ namespace DevTools;
 
 internal interface IDevTool
 {
-  string ToolName { get; }
+	void Init(ModContentPack mod);
 
-  bool TryRegisterType(Type type);
-
-  void Init(ModContentPack mod);
-
-  void OpenMenu();
+	bool TryRegisterType(Type type);
 }

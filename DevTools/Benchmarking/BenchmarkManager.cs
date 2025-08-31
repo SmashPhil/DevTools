@@ -12,13 +12,27 @@ using Result = DevTools.Benchmarking.Benchmark.Result;
 
 namespace DevTools.Benchmarking;
 
-internal class BenchmarkManager : IDevTool
+internal class BenchmarkManager : IDevToolWithMenu
 {
 	private const string ManagerName = "Benchmark";
 
 	private readonly Dictionary<string, BenchmarkMethods> benchmarks = [];
 
-	string IDevTool.ToolName => ManagerName;
+	string IDevToolWithMenu.Name => ManagerName;
+
+	void IDevToolWithMenu.OpenMenu()
+	{
+		List<DebugMenuOption> options = [];
+		foreach (BenchmarkMethods methods in benchmarks.Values.OrderBy(bm => bm.category))
+		{
+			if (!IsAllowedGameState(methods.allowedGameStates))
+				continue;
+
+			options.Add(new DebugMenuOption(methods.category, DebugMenuOptionMode.Action,
+				() => RunBenchmarkFor(methods)));
+		}
+		Find.WindowStack.Add(new Dialog_DebugOptionListLister(options, ManagerName));
+	}
 
 	bool IDevTool.TryRegisterType(Type type)
 	{
@@ -41,20 +55,6 @@ internal class BenchmarkManager : IDevTool
 
 	void IDevTool.Init(ModContentPack mod)
 	{
-	}
-
-	void IDevTool.OpenMenu()
-	{
-		List<DebugMenuOption> options = [];
-		foreach (BenchmarkMethods methods in benchmarks.Values.OrderBy(bm => bm.category))
-		{
-			if (!IsAllowedGameState(methods.allowedGameStates))
-				continue;
-
-			options.Add(new DebugMenuOption(methods.category, DebugMenuOptionMode.Action,
-				() => RunBenchmarkFor(methods)));
-		}
-		Find.WindowStack.Add(new Dialog_DebugOptionListLister(options, ManagerName));
 	}
 
 	private static void OutputResults(BenchmarkMethods benchmarks,

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Globalization;
-using DevTools.UnitTesting;
+using DevTools.Testing;
 using JetBrains.Annotations;
 using UnityEngine.Assertions;
 

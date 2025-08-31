@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using DevTools.UnitTesting;
+using DevTools.Testing;
 using Verse;
 
 namespace DevTools;
@@ -18,7 +18,9 @@ internal static class CommandRunner
 		const string FilterArg = "--where";
 		const string RunPlanArg = "--plan";
 
-		bool runTests = false;
+		const string SmokeTestArg = "--smoke-test";
+
+		TestCommand testToRun = TestCommand.None;
 		string[] args = Environment.GetCommandLineArgs();
 		if (args.Length == 0)
 			return null;
@@ -34,9 +36,13 @@ internal static class CommandRunner
 						result.packageId = args[++i];
 				break;
 				case RunTestsArg:
-					runTests = true;
+					testToRun = TestCommand.Unit;
+				break;
+				case SmokeTestArg:
+					testToRun = TestCommand.Smoke;
 				break;
 				case RunPlanArg:
+					testToRun = TestCommand.Plan;
 					if (i + 1 < args.Length)
 					{
 						result.testPlan = args[++i];
@@ -48,25 +54,35 @@ internal static class CommandRunner
 				break;
 			}
 		}
-		if (result.packageId != mod.PackageIdPlayerFacing)
+		if (!result.packageId.EqualsIgnoreCase(mod.PackageIdPlayerFacing))
 			return null;
 
-		if (runTests)
+		switch (testToRun)
 		{
-			if (result.testPlan != null)
-			{
+			case TestCommand.Plan:
 				ReloadTestPlans(mod);
-			}
-
-			ExpressionTree expressionTree = null;
-			if (!result.filterStr.NullOrEmpty())
+			break;
+			case TestCommand.Unit:
 			{
-				expressionTree = ExpressionGenerator.Create(result.filterStr);
+				ExpressionTree expressionTree = null;
+				if (!result.filterStr.NullOrEmpty())
+				{
+					expressionTree = ExpressionGenerator.Create(result.filterStr);
+				}
+				UnitTestManager testManager = DevHarmony.GetDevTool<UnitTestManager>(mod);
+				TestRunner testRunner =
+					expressionTree != null ? testManager.GetRunnerWith(expressionTree) : new TestRunner(testManager);
+				testRunner.AddTestActions(testManager.Config);
+				testRunner.Run();
 			}
-			UnitTestManager testManager = DevHarmony.GetDevTool<UnitTestManager>(mod);
-			TestRunner testRunner =
-				expressionTree != null ? testManager.GetRunnerWith(expressionTree) : new TestRunner(testManager);
-			testRunner.Run();
+			break;
+			case TestCommand.Smoke:
+			{
+				SmokeTestManager testManager = DevHarmony.GetDevTool<SmokeTestManager>(mod);
+				TestRunner testRunner = new(testManager);
+				testRunner.Run();
+			}
+			break;
 		}
 		return result;
 	}
@@ -89,6 +105,14 @@ internal static class CommandRunner
 				}
 			}
 		}
+	}
+
+	private enum TestCommand
+	{
+		None,
+		Plan,
+		Unit,
+		Smoke
 	}
 
 	public record Result
