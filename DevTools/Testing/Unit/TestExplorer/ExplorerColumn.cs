@@ -10,6 +10,7 @@ namespace DevTools.Testing;
 [StaticConstructorOnStartup]
 public class ExplorerColumn : IDataColumn
 {
+	private const float RotationRate = 2; // seconds per rotation
 	internal const float LineHeight = 30;
 
 	private static readonly Color InactiveColor = new(0.37f, 0.37f, 0.37f, 0.8f);
@@ -130,6 +131,8 @@ public class ExplorerColumn : IDataColumn
 
 	private static void CheckboxDraw(Rect rect, Status status, bool disabled)
 	{
+		using TextBlock colorBlock = new(Color.white);
+
 		if (disabled)
 			GUI.color = InactiveColor;
 
@@ -140,15 +143,23 @@ public class ExplorerColumn : IDataColumn
 			Status.Skipped  => CheckJobCanceled,
 			Status.Passed   => CheckYes,
 			Status.Pending  => CheckJobRunning,
-			Status.NotRun   => CheckJobNotRun,
+			Status.NotRun   => CheckJobCanceled,
 			_               => throw new NotImplementedException(),
 		};
-		GUI.DrawTexture(rect, image);
+		float angle = 0;
+		if (status is Status.Pending)
+		{
+			angle = Mathf.Lerp(0, 1, Time.realtimeSinceStartup % RotationRate / RotationRate) * 360;
+		}
+		GUI.BeginGroup(rect);
+		{
+			Widgets.DrawTextureRotated(rect.AtZero(), image, angle);
+		}
+		GUI.EndGroup();
 		if (!disabled)
 		{
 			TooltipHandler.TipRegion(rect, StatusLabel(status));
 		}
-		GUI.color = Color.white;
 	}
 
 	private static string StatusLabel(Status status)

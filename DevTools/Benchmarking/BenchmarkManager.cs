@@ -53,8 +53,9 @@ internal class BenchmarkManager : IDevToolWithMenu
 		return true;
 	}
 
-	void IDevTool.Init(ModContentPack mod)
+	bool IDevTool.Init(ModContentPack mod)
 	{
+		return true;
 	}
 
 	private static void OutputResults(BenchmarkMethods benchmarks,

@@ -33,7 +33,7 @@ public interface ITestCase : IDataRow<ExplorerColumn>
 	/// <summary>
 	/// Final test status. Highest severity Status is preserved
 	/// </summary>
-	Status Status { get; }
+	Status Status { get; set; }
 
 	/// <summary>
 	/// Shortened label for test failure shown in test explorer

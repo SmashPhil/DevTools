@@ -17,6 +17,8 @@ internal class SmokeTestGroup : ITestGroup
 	private string failMessageInt;
 	private readonly Stopwatch groupTimer = new();
 
+	private readonly Dictionary<Type, object> instanceByType = [];
+
 	public SmokeTestGroup(Type type, TestType testType)
 	{
 		Type = type;
@@ -39,7 +41,7 @@ internal class SmokeTestGroup : ITestGroup
 
 	public Benchmark.Result Duration { get; private set; }
 
-	public Status Status { get; private set; } = Status.NotRun;
+	public Status Status { get; set; } = Status.NotRun;
 
 	public string FailLabel { get; private set; }
 
@@ -105,7 +107,6 @@ internal class SmokeTestGroup : ITestGroup
 	{
 		groupTimer.Stop();
 		Duration = new Benchmark.Result(groupTimer, 1, Benchmark.Measurement.Milliseconds);
-		Status = tests.Min(test => test.Status);
 
 		// TODO - prep map
 
@@ -129,7 +130,32 @@ internal class SmokeTestGroup : ITestGroup
 		if (!methodInfo.HasAllRequiredMods() || !methodInfo.HasAnyRequiredMods())
 			return false;
 
-		SmokeTestFunction method = new(methodInfo);
+		object instance = null;
+		Type declaringType = methodInfo.DeclaringType;
+		if (declaringType != null)
+		{
+			// Static types are both abstract and sealed
+			if (declaringType.IsAbstract)
+			{
+				// Only static types should be getting added as a unit test method if the type
+				// is abstract, otherwise we wouldn't be able to invoke the method.
+				if (!declaringType.IsSealed)
+				{
+					Log.Error("Trying to instantiate abstract type for smoke testing.");
+					return false;
+				}
+			}
+			else
+			{
+				if (!instanceByType.TryGetValue(declaringType, out instance))
+				{
+					instance = Activator.CreateInstance(declaringType);
+					instanceByType[declaringType] = instance;
+				}
+			}
+		}
+
+		SmokeTestFunction method = new(instance, methodInfo);
 		method.MetaData.Load(methodInfo);
 		tests.Add(method);
 		return true;

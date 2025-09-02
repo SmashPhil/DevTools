@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using HarmonyLib;
 using UnityEngine;
 using Verse;
 
@@ -14,9 +13,9 @@ namespace DevTools.Testing;
 /// </summary>
 internal class SmokeTestManager : IDevToolWithMenu, ITestManager
 {
-	private static readonly Dictionary<LogMessageType, List<string>> LogMessagesOnStartup = [];
+	private static readonly string DefaultTestKey = typeof(DefaultSmokeTests).FullName;
 
-	private readonly Dictionary<string, SmokeTestGroup> smokeTests = [];
+	private readonly Dictionary<(string, TestType), SmokeTestGroup> smokeTests = [];
 
 	private SmokeTestConfig config;
 
@@ -30,24 +29,17 @@ internal class SmokeTestManager : IDevToolWithMenu, ITestManager
 
 	public IEnumerable<ITestGroup> TestGroups => smokeTests.Values;
 
-	private string LogTestKey => GetType().FullName;
-
-	void IDevTool.Init(ModContentPack mod)
+	bool IDevTool.Init(ModContentPack mod)
 	{
-		SmokeTestGroup smokeTestStartup = new(GetType(), TestType.MainMenu);
-		smokeTestStartup.TryAddFunction(AccessTools.Method(typeof(SmokeTestManager), nameof(VerifyStartupLogs)));
-
-		smokeTests[LogTestKey] = smokeTestStartup;
-
-		PeekStartupLogs();
-
 		config = this.LoadConfig<SmokeTestConfig>(mod);
+		return config != null;
 	}
 
 	bool IDevTool.TryRegisterType(Type type)
 	{
 		bool anyAdded = false;
-		foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+		foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static |
+			BindingFlags.Instance))
 		{
 			if (method.TryGetAttribute<SmokeTestAttribute>() is not { } smokeTestAttr)
 				continue;
@@ -56,7 +48,7 @@ internal class SmokeTestManager : IDevToolWithMenu, ITestManager
 			if (key == null)
 				return false;
 
-			bool added = !smokeTests.TryGetValue(key, out SmokeTestGroup testGroup);
+			bool added = !smokeTests.TryGetValue((key, smokeTestAttr.Type), out SmokeTestGroup testGroup);
 			testGroup ??= new SmokeTestGroup(type, smokeTestAttr.Type);
 			testGroup.MetaData.Load(type);
 
@@ -65,24 +57,32 @@ internal class SmokeTestManager : IDevToolWithMenu, ITestManager
 
 			if (added)
 			{
-				smokeTests[key] = testGroup;
+				smokeTests[(key, smokeTestAttr.Type)] = testGroup;
 			}
 			anyAdded |= testGroup.TryAddFunction(method);
 		}
 		return anyAdded;
 	}
 
+	void ITestManager.OnTestRunnerStart()
+	{
+	}
+
 	void ITestManager.OnTestRunnerEnd()
 	{
-		const string HeadlessArg = "-batchmode";
-
-		if (Environment.GetCommandLineArgs().Contains(HeadlessArg))
+		if (DevHarmony.Args is { exitOnFinish: true })
 		{
-			bool anyfailed = TestGroups.Any(group => group.Status == Status.Failed);
-			Application.Quit(anyfailed ? 1 : 0);
+			bool anyFailed = TestGroups.Any(group => group.Status == Status.Failed);
+			DevLog.Write($"Test runner finished. Result: {(anyFailed ? "Failed" : "Passed")}");
+			Application.Quit(anyFailed ? 1 : 0);
 			return;
 		}
 		OpenMenu();
+	}
+
+	internal ITestGroup GetDefaultGroup(TestType testType)
+	{
+		return smokeTests.TryGetValue((DefaultTestKey, testType));
 	}
 
 	public void RunAll()
@@ -95,45 +95,6 @@ internal class SmokeTestManager : IDevToolWithMenu, ITestManager
 	// TODO - Add def spawning as an option for smoke tests (ie. the default for menu-launched smoke tests)
 	public void OpenMenu()
 	{
-		Find.WindowStack.Add(new Dialog_TestExplorer(this));
-	}
-
-	[SmokeTest(TestType.MainMenu), ExecutionPriority(Priority.First)]
-	private static void VerifyStartupLogs()
-	{
-		if (TestRunner.Current?.testManager is not SmokeTestManager testManager)
-			throw new InvalidOperationException("Invoking preset smoke test outside of SmokeTest runner.");
-
-		SmokeTestConfig config = testManager.Config;
-
-		ITestGroup mainMenuGroup = testManager.smokeTests[testManager.LogTestKey];
-		foreach (string message in LogMessagesOnStartup[LogMessageType.Warning])
-		{
-			if (!LogWatcher.LogAllowed(config, LogType.Warning, message, out string failReason))
-			{
-				mainMenuGroup.Fail(failReason);
-				return;
-			}
-		}
-		foreach (string message in LogMessagesOnStartup[LogMessageType.Error])
-		{
-			if (!LogWatcher.LogAllowed(config, LogType.Error, message, out string failReason))
-			{
-				mainMenuGroup.Fail(failReason);
-				return;
-			}
-		}
-	}
-
-	private static void PeekStartupLogs()
-	{
-		LogMessagesOnStartup[LogMessageType.Message] = [];
-		LogMessagesOnStartup[LogMessageType.Warning] = [];
-		LogMessagesOnStartup[LogMessageType.Error] = [];
-
-		foreach (LogMessage message in Log.Messages)
-		{
-			LogMessagesOnStartup[message.type].Add(message.text);
-		}
+		Find.WindowStack.Add(new Dialog_TestExplorer(this, new Dialog_TestExplorer.TestExplorerEntryComparer()));
 	}
 }

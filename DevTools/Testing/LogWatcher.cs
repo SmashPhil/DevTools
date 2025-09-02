@@ -7,7 +7,7 @@ using Verse;
 
 namespace DevTools.Testing;
 
-internal readonly struct LogWatcher : IDisposable
+internal class LogWatcher : IDisposable
 {
 	private static readonly ConcurrentDictionary<LogType, List<LogEntry>> LogCounts = [];
 
@@ -34,7 +34,7 @@ internal readonly struct LogWatcher : IDisposable
 		LogCounts[type].Add(new LogEntry(msg, stackTrace));
 	}
 
-	void IDisposable.Dispose()
+	public void Dispose()
 	{
 		try
 		{
@@ -59,34 +59,35 @@ internal readonly struct LogWatcher : IDisposable
 		if (logs.NullOrEmpty())
 			return;
 
-		foreach (LogEntry entry in logs)
+		foreach (LogEntry logEntry in logs)
 		{
-			if (!LogAllowed(config, logType, entry.message, out string failReason))
+			if (!LogAllowed(config, logType, logEntry, out string failReason))
 			{
-				testCase.Fail(failReason);
+				testCase.Fail($"{failReason}");
 				return;
 			}
 		}
 	}
 
-	public static bool LogAllowed(ITestConfig config, LogType logType, string message, out string failReason)
+	public static bool LogAllowed(ITestConfig config, LogType logType, in LogEntry logEntry,
+		out string failReason)
 	{
 		failReason = null;
-		if (config.LogContained(logType, message))
+		if (config.LogContained(logType, logEntry.message))
 			return true;
 
-		failReason = FailReason(logType, message);
+		failReason = FailReason(logType, logEntry);
 		DevLog.Write($"{Expect.FailedLabel} {failReason}");
 		return false;
 
-		static string FailReason(LogType logType, string message)
+		static string FailReason(LogType logType, in LogEntry logEntry)
 		{
 			return logType switch
 			{
 				LogType.Error or LogType.Assert or LogType.Exception =>
-					$"Logged error not whitelisted for tests.\nError = \"{message}\"",
+					$"Logged error not whitelisted for tests.\nError = \"{logEntry.message}\"{Environment.NewLine}{logEntry.stackTrace}",
 				LogType.Warning =>
-					$"Logged warning not whitelisted for tests.\nWarning = \"{message}\"",
+					$"Logged warning not whitelisted for tests.\nWarning = \"{logEntry.message}\"{Environment.NewLine}{logEntry.stackTrace}",
 				_ => throw new NotImplementedException(nameof(LogType))
 			};
 		}

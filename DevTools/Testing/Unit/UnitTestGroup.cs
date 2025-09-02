@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
 using DevTools.Benchmarking;
 using JetBrains.Annotations;
@@ -44,7 +43,7 @@ internal class UnitTestGroup : ITestGroup
 
 	public Benchmark.Result Duration { get; private set; }
 
-	public Status Status { get; private set; } = Status.NotRun;
+	public Status Status { get; set; } = Status.NotRun;
 
 	public string FailLabel { get; private set; }
 
@@ -139,7 +138,6 @@ internal class UnitTestGroup : ITestGroup
 		{
 			groupTimer.Stop();
 			Duration = new Benchmark.Result(groupTimer, 1, Benchmark.Measurement.Milliseconds);
-			Status = setUps.Concat(tests).Concat(tearDowns).Min(test => test.Status);
 		}
 	}
 
@@ -175,7 +173,10 @@ internal class UnitTestGroup : ITestGroup
 					// Only static types should be getting added as a unit test method if the type
 					// is abstract, otherwise we wouldn't be able to invoke the method.
 					if (!declaringType.IsSealed)
+					{
 						Log.Error("Trying to instantiate abstract type for unit testing.");
+						return;
+					}
 				}
 				else
 				{

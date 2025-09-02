@@ -33,7 +33,7 @@ public class UnitTestManager : IDevToolWithMenu, ITestManager
 
 	public UnitTestManager()
 	{
-		testExplorer = new Dialog_TestExplorer(this);
+		testExplorer = new Dialog_TestExplorer(this, new Dialog_TestExplorer.TestExplorerEntryComparer());
 	}
 
 	string ITestManager.ConfigName => "UnitTestConfig";
@@ -73,7 +73,7 @@ public class UnitTestManager : IDevToolWithMenu, ITestManager
 		return true;
 	}
 
-	void IDevTool.Init(ModContentPack mod)
+	bool IDevTool.Init(ModContentPack mod)
 	{
 		this.mod = mod;
 		foreach (UnitTestGroup testGroup in unitTests.Values)
@@ -86,6 +86,7 @@ public class UnitTestManager : IDevToolWithMenu, ITestManager
 			testGroup.SortByExecutionPriority();
 		}
 		config = this.LoadConfig<UnitTestConfig>(mod);
+		return config != null;
 	}
 
 	internal bool TryGetUnitTest(string fullName, out UnitTestGroup testGroup)
@@ -93,14 +94,17 @@ public class UnitTestManager : IDevToolWithMenu, ITestManager
 		return unitTests.TryGetValue(fullName, out testGroup);
 	}
 
+	void ITestManager.OnTestRunnerStart()
+	{
+	}
+
 	void ITestManager.OnTestRunnerEnd()
 	{
-		const string HeadlessArg = "-batchmode";
-
-		if (Environment.GetCommandLineArgs().Contains(HeadlessArg))
+		if (DevHarmony.Args is { exitOnFinish: true })
 		{
-			bool anyfailed = UnitTests.Any(group => group.Status == Status.Failed);
-			Application.Quit(anyfailed ? 1 : 0);
+			bool anyFailed = UnitTests.Any(group => group.Status == Status.Failed);
+			DevLog.Write($"Test runner finished. Result: {(anyFailed ? "Failed" : "Passed")}");
+			Application.Quit(anyFailed ? 1 : 0);
 			return;
 		}
 		OpenMenu();

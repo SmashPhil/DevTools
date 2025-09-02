@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using RimWorld;
@@ -21,6 +22,7 @@ internal sealed class Dialog_TestExplorer : Window
 		(UI.screenHeight - DialogSize.y) / 2f, DialogSize.x, DialogSize.y);
 
 	private readonly ITestManager testManager;
+	private readonly IComparer<ITestGroup> comparer;
 	private readonly List<ITestGroup> testGroups = [];
 	private readonly DataTable<ExplorerColumn, ITestCase> table = new();
 
@@ -30,9 +32,10 @@ internal sealed class Dialog_TestExplorer : Window
 	private float startingWidth;
 	private float paneWidth = TestColumnWidth;
 
-	public Dialog_TestExplorer(ITestManager testManager)
+	public Dialog_TestExplorer(ITestManager testManager, IComparer<ITestGroup> comparer = null)
 	{
 		this.testManager = testManager;
+		this.comparer = comparer;
 		SetWindowProperties();
 	}
 
@@ -44,10 +47,25 @@ internal sealed class Dialog_TestExplorer : Window
 
 	protected override float Margin => 0;
 
-	private void RefreshTestList()
+	public void Refresh()
 	{
 		testGroups.Clear();
-		testGroups.AddRange(testManager.TestGroups.OrderBy(group => group.Name));
+		IEnumerable<ITestGroup> groups = comparer != null ?
+			testManager.TestGroups.OrderBy(group => group, comparer) :
+			testManager.TestGroups;
+		testGroups.AddRange(groups);
+
+		table.SetColumns(
+			new ExplorerColumn(ExplorerColumn.Type.Tests, TestColumnWidth),
+			new ExplorerColumn(ExplorerColumn.Type.Duration, 150) { Anchor = TextAnchor.MiddleRight },
+			//new ExplorerColumn(ExplorerColumn.Type.Traits, 150),
+			new ExplorerColumn(ExplorerColumn.Type.ErrorMessage, 1000)
+		);
+
+		table.SetRows(testGroups);
+		table.SetSelector(new TestSelector(testManager));
+		table.Selector.OnSelectionChanged += RebuildSummary;
+		table.RecacheHeight();
 	}
 
 	private void SetWindowProperties()
@@ -64,18 +82,7 @@ internal sealed class Dialog_TestExplorer : Window
 	public override void PreOpen()
 	{
 		base.PreOpen();
-		RefreshTestList();
-		table.SetColumns(
-			new ExplorerColumn(ExplorerColumn.Type.Tests, TestColumnWidth),
-			new ExplorerColumn(ExplorerColumn.Type.Duration, 150) { Anchor = TextAnchor.MiddleRight },
-			//new ExplorerColumn(ExplorerColumn.Type.Traits, 150),
-			new ExplorerColumn(ExplorerColumn.Type.ErrorMessage, 1000)
-		);
-
-		table.SetRows(testGroups);
-		table.SetSelector(new TestSelector(testManager));
-		table.Selector.OnSelectionChanged += RebuildSummary;
-		table.RecacheHeight();
+		Refresh();
 	}
 
 	protected override void SetInitialSizeAndPosition()
@@ -296,5 +303,19 @@ internal sealed class Dialog_TestExplorer : Window
 		int cleanUpSkipped = statusCount[MethodType.TearDown, Status.Skipped];
 		if (cleanUpSkipped > 0)
 			summaryBuilder.AppendLine($"    {cleanUpSkipped} TearDown Skipped");
+	}
+
+	public class TestExplorerEntryComparer : Comparer<ITestGroup>
+	{
+		public override int Compare(ITestGroup a, ITestGroup b)
+		{
+			if (a == null && b == null)
+				return 0;
+			if (b == null)
+				return 1;
+			if (a == null)
+				return -1;
+			return StringComparer.InvariantCultureIgnoreCase.Compare(a.Name, b.Name);
+		}
 	}
 }

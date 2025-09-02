@@ -13,13 +13,15 @@ internal class SmokeTestFunction : ITestFunction
 {
 	private static readonly object[] EmptyArgs = [];
 
+	private readonly object instance;
 	private readonly MethodInfo method;
 
 	private readonly Stopwatch stopwatch = new();
 	private string failMessageInt;
 
-	public SmokeTestFunction(MethodInfo method)
+	public SmokeTestFunction(object instance, MethodInfo method)
 	{
+		this.instance = instance;
 		this.method = method;
 	}
 
@@ -27,11 +29,9 @@ internal class SmokeTestFunction : ITestFunction
 
 	public Type Type => method.DeclaringType;
 
-	public Type DeclaringType => MethodInfo.DeclaringType;
-
 	public MetaDataContainer MetaData { get; } = new();
 
-	public Status Status { get; private set; } = Status.NotRun;
+	public Status Status { get; set; } = Status.NotRun;
 
 	public string FailLabel { get; private set; }
 
@@ -82,7 +82,7 @@ internal class SmokeTestFunction : ITestFunction
 		using StopOnDispose sw = new(stopwatch);
 		try
 		{
-			method.Invoke(null, EmptyArgs);
+			method.Invoke(instance, EmptyArgs);
 			stopwatch.Stop();
 			TabulateTestResults(this);
 		}
@@ -107,7 +107,7 @@ internal class SmokeTestFunction : ITestFunction
 		DevLog.WriteVerbose($"Executing {Type.Name}::{Name}");
 
 		Assert.AreEqual(method.ReturnType, typeof(IEnumerator));
-		IEnumerator enumerator = (IEnumerator)method.Invoke(null, EmptyArgs);
+		IEnumerator enumerator = (IEnumerator)method.Invoke(instance, EmptyArgs);
 
 		using StopOnDispose sw = new(stopwatch);
 		while (true)

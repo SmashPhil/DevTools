@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using RimWorld;
 using RimWorld.Planet;
@@ -111,17 +112,17 @@ public sealed class TestRunner
 
 	public void Run()
 	{
-		// Only 1 test routine can be active at a time. Tests must run on the main thread due to 
-		// Unity's lack of thread safety. If multiple tests are ran at the same time, it would need
-		// to be in a separate process.
-		if (Active)
-		{
-			Messages.Message("Unit testing already in progress.", MessageTypeDefOf.RejectInput,
-				historical: false);
-			return;
-		}
 		LongEventHandler.ExecuteWhenFinished(delegate
 		{
+			// Only 1 test routine can be active at a time. Tests must run on the main thread due to 
+			// Unity's lack of thread safety. If multiple tests are ran at the same time, it would need
+			// to be in a separate process.
+			if (Active)
+			{
+				Log.Error("Trying to start test runner when one is already in progress.");
+				return;
+			}
+
 			StopRequested = false;
 			TestFilter filter = expressionTree != null ? expressionTree.GetFilteredTests : testFilter;
 			// Unfiltered expression tree will return all tests in order of TestType
@@ -145,7 +146,7 @@ public sealed class TestRunner
 	private IEnumerator TestRoutine(TestFilter filter)
 	{
 		ITestConfig config = testManager.Config;
-		Application.runInBackground = true;
+		using ApplicationState appState = new();
 
 		// NOTE - Enable test logger first, UnitTestEnabler will invoke state change events which may want
 		// to write to the test log.
@@ -158,6 +159,9 @@ public sealed class TestRunner
 
 		uint seed = config.Seed ?? (uint)Rand.Int;
 		using RandBlockPersistent randBlock = new(seed);
+
+		testManager.OnTestRunnerStart();
+
 		DevLog.Write($"Starting tests with seed: {seed}");
 		DevLog.WriteLine();
 		TestType currentTestType = TestType.MainMenu;
@@ -167,6 +171,8 @@ public sealed class TestRunner
 				break;
 			if (functions.NullOrEmpty() || group.IsDisabled())
 				continue;
+
+			group.Status = Status.Pending;
 
 			// Scene change for test type
 			if (currentTestType != group.TestType)
@@ -198,12 +204,13 @@ public sealed class TestRunner
 					if (ShouldStop(function))
 						break;
 
+					function.Status = Status.Pending;
+
 					int attempts = config.RetryAttempts + 1;
 					do
 					{
 						using (new LogWatcher(config, function))
 						{
-							// Execute tests
 							if (function.IsSubRoutine())
 							{
 								yield return function.ExecuteRoutine();
@@ -242,6 +249,9 @@ public sealed class TestRunner
 						DevLog.Write(postTestFail);
 						group.Fail(postTestFail);
 					}
+
+					Status minTestStatus = group.TestFunctions.Min(testFunction => testFunction.Status);
+					group.Status = group.Status.Min(minTestStatus, Status.Passed);
 				}
 				catch (Exception ex)
 				{
@@ -302,7 +312,6 @@ public sealed class TestRunner
 	private static IEnumerator LoadSaveRoutine(string saveFile)
 	{
 		using GenStepWarningDisabler gswd = new();
-		// Handle scene transition
 		Assert.IsTrue(!saveFile.NullOrEmpty());
 		GameDataSaveLoader.LoadGame(saveFile);
 		yield return WaitTillProgramState(ProgramState.Playing);
@@ -337,8 +346,7 @@ public sealed class TestRunner
 			if (Verse.Current.ProgramState != ProgramState.Entry)
 			{
 				GenScene.GoToMainMenu();
-				while (Verse.Current.ProgramState != ProgramState.Entry ||
-					LongEventHandler.AnyEventNowOrWaiting)
+				while (Verse.Current.ProgramState != ProgramState.Entry || LongEventHandler.AnyEventNowOrWaiting)
 				{
 					yield return null;
 				}
@@ -356,8 +364,7 @@ public sealed class TestRunner
 
 	private static IEnumerator WaitTillProgramState(ProgramState programState)
 	{
-		while (Verse.Current.ProgramState != programState ||
-			LongEventHandler.AnyEventNowOrWaiting)
+		while (Verse.Current.ProgramState != programState || LongEventHandler.AnyEventNowOrWaiting)
 		{
 			yield return null;
 		}
@@ -370,14 +377,12 @@ public sealed class TestRunner
 	{
 		LongEventHandler.QueueLongEvent(delegate
 		{
-			MemoryUtility.ClearAllMapsAndWorld();
 			InitGame(worldGenSettings, mapGenSettings);
 			LongEventHandler.QueueLongEvent(delegate
 			{
 				Find.GameInitData.PrepForMapGen();
 				Find.Scenario.PreMapGenerate();
 			}, "Play", "GeneratingMap", true, null);
-			//Current.Game.InitNewGame();
 		}, "GeneratingMap", true, GameAndMapInitExceptionHandlers.ErrorWhileGeneratingMap);
 	}
 
@@ -415,7 +420,7 @@ public sealed class TestRunner
 
 	private readonly struct TestEnabler : IDisposable
 	{
-		// Disables Harmony's stack trace caching for full verbosity while conducting unit tests
+		// Disables Harmony's stack trace caching for full verbosity while conducting tests
 		private readonly StackTraceCacheDisabler stcDisabler;
 
 		public TestEnabler(TestRunner runner)
@@ -430,6 +435,22 @@ public sealed class TestRunner
 			stcDisabler.Dispose();
 			current = null;
 			OnTestRunnerStateChange?.Invoke(false);
+		}
+	}
+
+	private readonly struct ApplicationState : IDisposable
+	{
+		private readonly bool runInBackground;
+
+		public ApplicationState()
+		{
+			runInBackground = Application.runInBackground;
+			Application.runInBackground = true;
+		}
+
+		void IDisposable.Dispose()
+		{
+			Application.runInBackground = runInBackground;
 		}
 	}
 }

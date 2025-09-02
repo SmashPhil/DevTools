@@ -16,6 +16,8 @@ internal static class DevHarmony
 
 	private static readonly Dictionary<ModContentPack, List<IDevTool>> ModDevTools = [];
 
+	public static CommandRunner.Result Args { get; private set; }
+
 	// NOTE - this should be initialized from SCOS so dev tools static constructors have access to Defs
 	static DevHarmony()
 	{
@@ -50,46 +52,58 @@ internal static class DevHarmony
 
 	private static void LoadTypes()
 	{
+		using DeepProfilerScope dps = new("Loading DevTools");
 		foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
 		{
-			List<IDevTool> toolList =
-			[
-				CreateDevTool<BenchmarkManager>(),
-				CreateDevTool<UnitTestManager>(),
-				CreateDevTool<SmokeTestManager>()
-			];
+			TryLoadDevTool<BenchmarkManager>(mod);
+			TryLoadDevTool<UnitTestManager>(mod);
+			TryLoadDevTool<SmokeTestManager>(mod);
+			TryLoadDevTool<TestPlanManager>(mod);
+		}
+		FinalizeInit();
+		return;
+
+		static void TryLoadDevTool<T>(ModContentPack mod) where T : IDevTool, new()
+		{
+			T devTool = CreateDevTool<T>();
 			bool anyRegistered = false;
 			foreach (Type type in mod.assemblies.loadedAssemblies.SelectMany(assembly =>
 				assembly.GetTypes()))
 			{
-				foreach (IDevTool devTool in toolList)
+				try
 				{
-					try
-					{
-						anyRegistered |= devTool.TryRegisterType(type);
-					}
-					catch (Exception ex)
-					{
-						Log.Error($"Exception thrown loading type {type.Name} for {devTool}.\n{ex}");
-					}
+					anyRegistered |= devTool.TryRegisterType(type);
+				}
+				catch (Exception ex)
+				{
+					Log.Error($"Exception thrown loading type {type.Name} for {devTool}.\n{ex}");
 				}
 			}
-			if (anyRegistered)
+			if (anyRegistered && devTool.Init(mod))
 			{
-				foreach (IDevTool devTool in toolList)
+				if (!ModDevTools.TryGetValue(mod, out List<IDevTool> tools))
 				{
-					devTool.Init(mod);
+					ModDevTools[mod] = tools = [];
 				}
-				ModDevTools[mod] = toolList;
+				tools.Add(devTool);
 			}
 		}
+	}
 
+	private static void FinalizeInit()
+	{
+		Args = null;
 		// Run commands for matching pid only
 		foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
 		{
-			CommandRunner.Result result = CommandRunner.ExecuteCommandLineArgs(mod);
-			if (result != null)
-				return;
+			Args = CommandRunner.ExecuteCommandLineArgs(mod);
+			if (Args != null)
+				break;
+		}
+
+		if (Args is { headless: true })
+		{
+			BatchModeCompatibility.Enable();
 		}
 	}
 

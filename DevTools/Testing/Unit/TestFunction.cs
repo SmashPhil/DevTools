@@ -28,13 +28,15 @@ public class TestFunction : ITestFunction
 
 	public Type Type => method.DeclaringType;
 
-	public Type DeclaringType => MethodInfo.DeclaringType;
-
 	public MetaDataContainer MetaData { get; } = new();
 
 	internal ContextGroup Root { get; private set; } = new(null);
 
-	public Status Status => Root.Status;
+	public Status Status
+	{
+		get => Root.Status;
+		set => Root.Status = value;
+	}
 
 	public string FailLabel => Root.FailLabel;
 

@@ -30,7 +30,12 @@ public interface ITestManager
 	void RunAll();
 
 	/// <summary>
-	/// TestRunner callback when the test run has finished.
+	/// TestRunner callback when a test run has started.
+	/// </summary>
+	void OnTestRunnerStart();
+
+	/// <summary>
+	/// TestRunner callback when a test run has finished.
 	/// </summary>
 	void OnTestRunnerEnd();
 }

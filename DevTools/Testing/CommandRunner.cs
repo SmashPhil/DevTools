@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using DevTools.Testing;
 using Verse;
 
@@ -16,9 +15,14 @@ internal static class CommandRunner
 
 		const string RunTestsArg = "--test";
 		const string FilterArg = "--where";
-		const string RunPlanArg = "--plan";
+
+		const string RunPlanArg = "--test-plan";
 
 		const string SmokeTestArg = "--smoke-test";
+
+		const string BatchMode = "-batchmode";
+		const string ExitAtEnd = "-e"; // Temporary solution since headless doesn't currently function with RimWorld
+		const string NoGraphics = "-nographics";
 
 		TestCommand testToRun = TestCommand.None;
 		string[] args = Environment.GetCommandLineArgs();
@@ -52,23 +56,36 @@ internal static class CommandRunner
 					if (i + 1 < args.Length)
 						result.filterStr = args[++i];
 				break;
+				case BatchMode:
+					result.headless = true;
+					result.exitOnFinish = true;
+				break;
+				case ExitAtEnd:
+					result.exitOnFinish = true;
+				break;
+				case NoGraphics:
+					result.graphicsDevice = false;
+				break;
 			}
 		}
 		if (!result.packageId.EqualsIgnoreCase(mod.PackageIdPlayerFacing))
 			return null;
 
+		ExpressionTree expressionTree = null;
+		if (!result.filterStr.NullOrEmpty())
+		{
+			expressionTree = ExpressionGenerator.Create(result.filterStr);
+		}
+
 		switch (testToRun)
 		{
 			case TestCommand.Plan:
-				ReloadTestPlans(mod);
+			{
+				DevHarmony.GetDevTool<TestPlanManager>(mod).Run(result.testPlan);
+			}
 			break;
 			case TestCommand.Unit:
 			{
-				ExpressionTree expressionTree = null;
-				if (!result.filterStr.NullOrEmpty())
-				{
-					expressionTree = ExpressionGenerator.Create(result.filterStr);
-				}
 				UnitTestManager testManager = DevHarmony.GetDevTool<UnitTestManager>(mod);
 				TestRunner testRunner =
 					expressionTree != null ? testManager.GetRunnerWith(expressionTree) : new TestRunner(testManager);
@@ -79,32 +96,13 @@ internal static class CommandRunner
 			case TestCommand.Smoke:
 			{
 				SmokeTestManager testManager = DevHarmony.GetDevTool<SmokeTestManager>(mod);
-				TestRunner testRunner = new(testManager);
+				TestRunner testRunner =
+					expressionTree != null ? testManager.GetRunnerWith(expressionTree) : new TestRunner(testManager);
 				testRunner.Run();
 			}
 			break;
 		}
 		return result;
-	}
-
-	private static void ReloadTestPlans(ModContentPack mod)
-	{
-		DirectoryInfo dirInfo = new(GenFile.ResolveCaseInsensitiveFilePath(mod.RootDir, "TestPlans"));
-		if (dirInfo.Exists)
-		{
-			foreach (FileInfo file in dirInfo.GetFiles("*.xml", SearchOption.AllDirectories))
-			{
-				try
-				{
-					TestPlan testPlan = DirectXmlLoader.ItemFromXmlFile<TestPlan>(file.FullName);
-					TestPlans.Add(testPlan);
-				}
-				catch (Exception ex)
-				{
-					Log.Error($"Exception thrown loading TestPlan {file.FullName}.\n{ex}");
-				}
-			}
-		}
 	}
 
 	private enum TestCommand
@@ -122,5 +120,9 @@ internal static class CommandRunner
 		// UnitTesting
 		public string filterStr;
 		public string testPlan;
+
+		public bool headless;
+		public bool exitOnFinish;
+		public bool graphicsDevice = true;
 	}
 }
