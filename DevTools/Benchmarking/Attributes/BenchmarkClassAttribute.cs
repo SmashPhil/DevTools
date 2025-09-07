@@ -4,22 +4,36 @@ using LudeonTK;
 
 namespace DevTools.Benchmarking;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-[AttributeUsage(AttributeTargets.Class)]
+/// <summary>
+/// Marks a class as a benchmark container discoverable by the benchmark manager.
+/// </summary>
+[PublicAPI, AttributeUsage(AttributeTargets.Class)]
 public class BenchmarkClassAttribute : Attribute
 {
-  public BenchmarkClassAttribute()
-  {
-  }
+	public BenchmarkClassAttribute()
+	{
+	}
 
-  public BenchmarkClassAttribute(string category)
-  {
-    Category = category;
-  }
+	/// <param name="category">Logical group name for the benchmark group.</param>
+	public BenchmarkClassAttribute(string category)
+	{
+		Category = category;
+	}
 
-  public string Category { get; }
+	/// <summary>
+	/// Logical group name for the benchmark group.
+	/// </summary>
+	/// <remarks>Used for grouping benchmarks in the DevTools menu.</remarks>
+	public string Category { get; }
 
-  public bool RunAsync { get; set; } = true;
+	/// <summary>
+	/// When <see langword="true"/>, the runner will execute benchmarks for this class from a long event.
+	/// Set to <see langword="false"/> for main-thread/synchronous execution.
+	/// </summary>
+	public bool RunAsync { get; set; } = true;
 
-  public AllowedGameStates AllowedGameStates { get; set; }
+	/// <summary>
+	/// Game states in which these benchmarks are allowed to run.
+	/// </summary>
+	public AllowedGameStates AllowedGameStates { get; set; }
 }

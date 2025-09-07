@@ -186,11 +186,8 @@ internal class BenchmarkManager : IDevToolWithMenu
 	private static unsafe Result RunTestWithContext<T>(Type declaringType, MethodInfo method,
 		Benchmark.Measurement measurement) where T : struct
 	{
-		// sanity check
 		Assert.IsTrue(method.GetParameters().Length == 1);
-
-		delegate*<ref T, void> funcPtr =
-			(delegate*<ref T, void>)method.MethodHandle.GetFunctionPointer();
+		var funcPtr = (delegate*<ref T, void>)method.MethodHandle.GetFunctionPointer();
 		return Benchmark.Run(funcPtr, GetContext<T>(declaringType), measurement);
 	}
 
