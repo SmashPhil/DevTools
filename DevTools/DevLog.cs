@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using DevTools.Testing;
+using HarmonyLib;
 using JetBrains.Annotations;
 
 namespace DevTools;
@@ -17,7 +18,7 @@ public static class DevLog
 
 	public static void WriteLine()
 	{
-		logger?.WriteLine();
+		logger?.Write(string.Empty);
 	}
 
 	public static void WriteVerbose(string message)
