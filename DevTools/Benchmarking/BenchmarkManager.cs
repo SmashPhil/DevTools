@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using HarmonyLib;
 using LudeonTK;
 using RimWorld.Planet;
 using UnityEngine.Assertions;
@@ -65,9 +66,9 @@ internal class BenchmarkManager : IDevToolWithMenu
 		if (graphType != GraphType.None)
 		{
 			//Find.WindowStack.Add(new Dialog_BenchmarkResults(stats, resultsByMethod));
-			return;
+			//return;
 		}
-		Stat stats = benchmarks.MetaData.Get(MetaDataName.Table, Stat.Mean | Stat.Median | Stat.StdDev);
+		Stat stats = benchmarks.MetaData.Get(MetaDataName.Table, Stat.Mean | Stat.Median | Stat.StdDev | Stat.Samples);
 		if (stats > Stat.None)
 		{
 			Find.WindowStack.Add(
@@ -163,32 +164,59 @@ internal class BenchmarkManager : IDevToolWithMenu
 			switch (parameters.Length)
 			{
 				case 0:
-					resultsByMethod.Add((name, RunTest(method, measurement)));
+				{
+					Result results = method.ReturnType == typeof(void) ?
+						RunTest(method, measurement) :
+						(Result)GenGeneric.InvokeStaticGenericMethod(typeof(BenchmarkManager),
+							method.ReturnType, nameof(RunTestWithReturn), method, measurement);
+					resultsByMethod.Add((name, results));
+				}
 				break;
 				case 1:
-					Result results = (Result)GenGeneric.InvokeStaticGenericMethod(
-						typeof(BenchmarkManager), parameters[0].ParameterType, nameof(RunTestWithContext), type,
-						method, measurement);
+				{
+					Result results = method.ReturnType == typeof(void) ?
+						(Result)GenGeneric.InvokeStaticGenericMethod(typeof(BenchmarkManager),
+							parameters[0].ParameterType, nameof(RunTestWithContext), type, method, measurement) :
+						(Result)AccessTools.Method(typeof(BenchmarkManager), nameof(RunTestWithContextAndReturn))
+						 .MakeGenericMethod(parameters[0].ParameterType, method.ReturnType)
+						 .Invoke(null, [type, method, measurement]);
+
 					resultsByMethod.Add((name, results));
+				}
 				break;
 			}
 		}
 		OutputResults(benchmarks, resultsByMethod);
 	}
 
-	private static unsafe Result RunTest(MethodInfo method, Benchmark.Measurement measurement)
+	private static Result RunTest(MethodInfo method, Benchmark.Measurement measurement)
 	{
 		Assert.IsTrue(method.GetParameters().Length == 0);
-		var funcPtr = (delegate*<void>)method.MethodHandle.GetFunctionPointer();
-		return Benchmark.Run(funcPtr, measurement);
+		Assert.IsTrue(method.ReturnType == typeof(void));
+		return Benchmark.Run(method.MethodHandle.GetFunctionPointer(), measurement);
 	}
 
-	private static unsafe Result RunTestWithContext<T>(Type declaringType, MethodInfo method,
+	private static Result RunTestWithReturn<R>(MethodInfo method, Benchmark.Measurement measurement)
+	{
+		Assert.IsTrue(method.GetParameters().Length == 0);
+		Assert.IsTrue(method.ReturnType == typeof(R));
+		return Benchmark.Run<R>(method.MethodHandle.GetFunctionPointer(), measurement);
+	}
+
+	private static Result RunTestWithContext<T>(Type declaringType, MethodInfo method,
 		Benchmark.Measurement measurement) where T : struct
 	{
 		Assert.IsTrue(method.GetParameters().Length == 1);
-		var funcPtr = (delegate*<ref T, void>)method.MethodHandle.GetFunctionPointer();
-		return Benchmark.Run(funcPtr, GetContext<T>(declaringType), measurement);
+		Assert.IsTrue(method.ReturnType == typeof(void));
+		return Benchmark.Run(method.MethodHandle.GetFunctionPointer(), GetContext<T>(declaringType), measurement);
+	}
+
+	private static Result RunTestWithContextAndReturn<T, R>(Type declaringType, MethodInfo method,
+		Benchmark.Measurement measurement) where T : struct
+	{
+		Assert.IsTrue(method.GetParameters().Length == 1);
+		Assert.IsTrue(method.ReturnType == typeof(R));
+		return Benchmark.Run<T, R>(method.MethodHandle.GetFunctionPointer(), GetContext<T>(declaringType), measurement);
 	}
 
 	private static T GetContext<T>(Type declaringType) where T : struct
@@ -277,11 +305,6 @@ internal class BenchmarkManager : IDevToolWithMenu
 		private static bool MethodIsSafe(MethodInfo method, out string reason)
 		{
 			reason = null;
-			if (method.ReturnType != typeof(void))
-			{
-				reason = "Return type must be void.";
-				return false;
-			}
 			if (!method.IsStatic)
 			{
 				reason = "Method must be static.";
