@@ -8,7 +8,6 @@ using RimWorld.Planet;
 using UnityEngine;
 using UnityEngine.Assertions;
 using Verse;
-using Verse.Profile;
 using static DevTools.Testing.Expression;
 
 namespace DevTools.Testing;
@@ -184,6 +183,17 @@ public sealed class TestRunner
 					yield return ChangeSceneRoutine(currentTestType);
 			}
 
+			if (currentTestType != group.TestType)
+			{
+				DevLog.Write($"Unable to transition scene to {group.TestType}. Failing test group.");
+				group.Status = Status.Failed;
+				foreach (ITestFunction function in functions)
+				{
+					function.Status = Status.Skipped;
+				}
+				continue;
+			}
+
 			try
 			{
 				if (!RunPreTestActions(group))
@@ -314,7 +324,7 @@ public sealed class TestRunner
 		using GenStepWarningDisabler gswd = new();
 		Assert.IsTrue(!saveFile.NullOrEmpty());
 		GameDataSaveLoader.LoadGame(saveFile);
-		yield return WaitTillProgramState(ProgramState.Playing);
+		yield return WaitTillPlaying();
 	}
 
 	private IEnumerator ChangeSceneRoutine(TestType testType)
@@ -358,13 +368,13 @@ public sealed class TestRunner
 		{
 			using GenStepWarningDisabler gswd = new();
 			GenerateWorld(worldGenSettings, mapGenSettings);
-			yield return WaitTillProgramState(ProgramState.Playing);
+			yield return WaitTillPlaying();
 		}
 	}
 
-	private static IEnumerator WaitTillProgramState(ProgramState programState)
+	private static IEnumerator WaitTillPlaying()
 	{
-		while (Verse.Current.ProgramState != programState || LongEventHandler.AnyEventNowOrWaiting)
+		while (Verse.Current.ProgramState == ProgramState.MapInitializing || LongEventHandler.AnyEventNowOrWaiting)
 		{
 			yield return null;
 		}
