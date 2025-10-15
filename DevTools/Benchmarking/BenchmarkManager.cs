@@ -92,21 +92,31 @@ internal class BenchmarkManager : IDevToolWithMenu
 			return true;
 
 		bool allowed = false;
-		if (allowedGameStates.HasFlag(AllowedGameStates.Entry))
+		if ((allowedGameStates & AllowedGameStates.Entry) != 0)
+		{
 			allowed |= Current.ProgramState == ProgramState.Entry;
+		}
 
-		if (allowedGameStates.HasFlag(AllowedGameStates.Playing))
+		if ((allowedGameStates & AllowedGameStates.Playing) != 0)
+		{
 			allowed |= Current.ProgramState == ProgramState.Playing;
+		}
 
-		if (allowedGameStates.HasFlag(AllowedGameStates.IsCurrentlyOnMap))
+		if ((allowedGameStates & AllowedGameStates.IsCurrentlyOnMap) != 0)
+		{
 			allowed |= !WorldRendererUtility.WorldRendered && Find.CurrentMap != null;
+		}
 
-		if (allowedGameStates.HasFlag(AllowedGameStates.WorldRenderedNow))
+		if ((allowedGameStates & AllowedGameStates.WorldRenderedNow) != 0)
+		{
 			allowed |= WorldRendererUtility.WorldRendered;
+		}
 
-		if (allowedGameStates.HasFlag(AllowedGameStates.HasGameCondition))
+		if ((allowedGameStates & AllowedGameStates.HasGameCondition) != 0)
+		{
 			allowed |= !WorldRendererUtility.WorldRendered && Find.CurrentMap != null &&
 				Find.CurrentMap.gameConditionManager.ActiveConditions.Count > 0;
+		}
 
 		return allowed;
 	}

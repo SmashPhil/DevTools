@@ -46,7 +46,7 @@ internal class Dialog_BenchmarkResults : Window
 			HeaderAnchor = TextAnchor.UpperRight,
 			Anchor = TextAnchor.MiddleRight
 		});
-		if (stats.HasFlag(Stat.Total))
+		if ((stats & Stat.Total) != 0)
 		{
 			table.AddColumn(new ResultColumn(ResultColumn.ColumnType.Stat, Stat.Total, 120)
 			{
@@ -54,7 +54,7 @@ internal class Dialog_BenchmarkResults : Window
 				Anchor = StatTextAnchor
 			});
 		}
-		if (stats.HasFlag(Stat.Mean))
+		if ((stats & Stat.Mean) != 0)
 		{
 			table.AddColumn(new ResultColumn(ResultColumn.ColumnType.Stat, Stat.Mean, 120)
 			{
@@ -62,7 +62,7 @@ internal class Dialog_BenchmarkResults : Window
 				Anchor = StatTextAnchor
 			});
 		}
-		if (stats.HasFlag(Stat.Median))
+		if ((stats & Stat.Median) != 0)
 		{
 			table.AddColumn(new ResultColumn(ResultColumn.ColumnType.Stat, Stat.Median, 120)
 			{
@@ -70,7 +70,7 @@ internal class Dialog_BenchmarkResults : Window
 				Anchor = StatTextAnchor
 			});
 		}
-		if (stats.HasFlag(Stat.StdDev))
+		if ((stats & Stat.StdDev) != 0)
 		{
 			table.AddColumn(new ResultColumn(ResultColumn.ColumnType.Stat, Stat.StdDev, 200)
 			{
@@ -78,7 +78,7 @@ internal class Dialog_BenchmarkResults : Window
 				Anchor = StatTextAnchor
 			});
 		}
-		if (stats.HasFlag(Stat.Samples))
+		if ((stats & Stat.Samples) != 0)
 		{
 			table.AddColumn(new ResultColumn(ResultColumn.ColumnType.Stat, Stat.Samples, 200)
 			{
@@ -86,7 +86,7 @@ internal class Dialog_BenchmarkResults : Window
 				Anchor = StatTextAnchor
 			});
 		}
-		if (stats.HasFlag(Stat.Partitions))
+		if ((stats & Stat.Partitions) != 0)
 		{
 			table.AddColumn(new ResultColumn(ResultColumn.ColumnType.Stat, Stat.Partitions, 200)
 			{
