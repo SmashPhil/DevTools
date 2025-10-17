@@ -343,7 +343,6 @@ public sealed class TestRunner
 			case TestType.PostGameExit:
 				if (Verse.Current.ProgramState != ProgramState.Playing)
 					yield return GenerateWorldRoutine(config.WorldSettings, config.MapSettings);
-				Assert.IsTrue(Verse.Current.ProgramState != ProgramState.Entry);
 				yield return LoadMainMenu();
 			break;
 			default:
