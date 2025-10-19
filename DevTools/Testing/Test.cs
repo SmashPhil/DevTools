@@ -63,13 +63,8 @@ public static class Test
 
   public static IEnumerator Suspend(float secondsTimeOut, string message = null)
   {
-    const int SecondsToMS = 1000;
-    const int MaxTimeOut = 10 * 60 * SecondsToMS; // 10 minutes
-
-    Assert.IsTrue(secondsTimeOut > 0);
-    int maxTimeOut = Mathf.CeilToInt(MaxTimeOut);
-    int countdownTime = Mathf.Min(Mathf.CeilToInt(secondsTimeOut), maxTimeOut);
-    using CancellationTokenSource token = new(maxTimeOut);
+    int countdownTime = Mathf.CeilToInt(secondsTimeOut);
+    using CancellationTokenSource token = new(countdownTime < 0 ? int.MaxValue : countdownTime * 1000);
 
     Dialog_TestSuspension dlg = new(message, countdownTime, token);
     Find.WindowStack.Add(dlg);
