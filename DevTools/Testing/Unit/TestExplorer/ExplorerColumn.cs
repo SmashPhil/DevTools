@@ -151,11 +151,7 @@ public class ExplorerColumn : IDataColumn
 		{
 			angle = Mathf.Lerp(0, 1, Time.realtimeSinceStartup % RotationRate / RotationRate) * 360;
 		}
-		GUI.BeginGroup(rect);
-		{
-			Widgets.DrawTextureRotated(rect.AtZero(), image, angle);
-		}
-		GUI.EndGroup();
+		Widgets.DrawTextureRotated(rect, image, angle);
 		if (!disabled)
 		{
 			TooltipHandler.TipRegion(rect, StatusLabel(status));
