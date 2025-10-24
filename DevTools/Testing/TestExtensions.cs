@@ -13,12 +13,12 @@ internal static class TestExtensions
 	public static bool IsDisabled(this ITestCase testCase)
 	{
 		if (testCase.MetaData.Get<string[]>(MetaDataName.LoadIfAllModsActive) is { } packageIdsAll &&
-			!ModsConfig.AreAllActive(packageIdsAll))
+			!ModLister.AllModsActiveNoSuffix(packageIdsAll))
 		{
 			return false;
 		}
 		if (testCase.MetaData.Get<string[]>(MetaDataName.LoadIfAnyModsActive) is { } packageIdsAny &&
-			!ModsConfig.IsAnyActiveOrEmpty(packageIdsAny, trimNames: true))
+			!ModLister.AnyModActiveNoSuffix(packageIdsAny))
 		{
 			return false;
 		}

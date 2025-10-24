@@ -1,67 +1,64 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup>
-        <Authors>Smash Phil</Authors>
-        <Description>SDK for benchmarking and unit testing in RimWorld.</Description>
-        <Product>DevTools</Product>
-        <FileVersion>1.6.0</FileVersion>
-        <AssemblyVersion>1.6.0</AssemblyVersion>
+	<PropertyGroup>
+		<Authors>Smash Phil</Authors>
+		<Description>SDK for benchmarking and unit testing in RimWorld.</Description>
+		<Product>DevTools</Product>
+		<FileVersion>1.6.0</FileVersion>
+		<AssemblyVersion>1.6.0</AssemblyVersion>
 
-        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-        <Configurations>Debug;Unstable;Release;ReleaseTesting</Configurations>
-        <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-        <ProjectGuid>{CBD9893C-47BE-405E-89F7-2342F47D26BC}</ProjectGuid>
-        <OutputType>Library</OutputType>
-        <AppDesignerFolder>Properties</AppDesignerFolder>
-        <RootNamespace>DevTools</RootNamespace>
-        <AssemblyName>DevTools</AssemblyName>
-        <TargetFramework>net48</TargetFramework>
-        <LangVersion>preview</LangVersion>
-        <FileAlignment>512</FileAlignment>
-        <Deterministic>true</Deterministic>
-        <OutDir>..\..\1.6\Assemblies\</OutDir>
-        <ManagedDirectory>..\..\..\..\RimWorldWin64_Data\Managed</ManagedDirectory>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <WarningLevel>4</WarningLevel>
-        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <NoWarn>CS0649</NoWarn>
-        <DebugType>embedded</DebugType>
-    </PropertyGroup>
+		<Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+		<Configurations>Debug;Unstable;Release;ReleaseTesting</Configurations>
+		<Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+		<ProjectGuid>{CBD9893C-47BE-405E-89F7-2342F47D26BC}</ProjectGuid>
+		<OutputType>Library</OutputType>
+		<AppDesignerFolder>Properties</AppDesignerFolder>
+		<RootNamespace>DevTools</RootNamespace>
+		<AssemblyName>DevTools</AssemblyName>
+		<TargetFramework>net48</TargetFramework>
+		<LangVersion>preview</LangVersion>
+		<FileAlignment>512</FileAlignment>
+		<Deterministic>true</Deterministic>
+		<OutDir>..\..\1.6\Assemblies\</OutDir>
+		<ManagedDirectory>..\..\..\..\RimWorldWin64_Data\Managed</ManagedDirectory>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<WarningLevel>4</WarningLevel>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<NoWarn>CS0649</NoWarn>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
 
-    <!-- Configurations -->
-    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-        <DebugSymbols>true</DebugSymbols>
-        <Optimize>false</Optimize>
-        <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
-    </PropertyGroup>
+	<!-- Configurations -->
+	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+		<DebugSymbols>true</DebugSymbols>
+		<Optimize>false</Optimize>
+		<DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
+	</PropertyGroup>
 
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
-        <DebugSymbols>true</DebugSymbols>
-        <Optimize>true</Optimize>
-        <DefineConstants>TRACE;UNSTABLE;UNITY_ASSERTIONS</DefineConstants>
-    </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
+		<DebugSymbols>true</DebugSymbols>
+		<Optimize>true</Optimize>
+		<DefineConstants>TRACE;UNSTABLE;UNITY_ASSERTIONS</DefineConstants>
+	</PropertyGroup>
 
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-        <DebugSymbols>true</DebugSymbols>
-        <Optimize>true</Optimize>
-        <DefineConstants>TRACE;RELEASE</DefineConstants>
-    </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<DebugSymbols>true</DebugSymbols>
+		<Optimize>true</Optimize>
+		<DefineConstants>TRACE;RELEASE</DefineConstants>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseTesting|AnyCPU'">
-	  <DebugSymbols>true</DebugSymbols>
-	  <Optimize>true</Optimize>
-	  <DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS</DefineConstants>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseTesting|AnyCPU'">
+		<DebugSymbols>true</DebugSymbols>
+		<Optimize>true</Optimize>
+		<DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS</DefineConstants>
+	</PropertyGroup>
 
-    <!-- Dependencies -->
-    <ItemGroup>
-        <PackageReference Include="Lib.Harmony" Version="2.3.6">
-            <IncludeAssets>compile; build</IncludeAssets>
-            <ExcludeAssets>runtime</ExcludeAssets>
-        </PackageReference>
-        <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4523" />
+	<!-- Dependencies -->
+	<ItemGroup>
+		<PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
+		<PackageReference Include="Lib.Harmony.Ref" Version="2.4.1" />
 
-        <!--
+		<!--
         <Reference Include="Assembly-CSharp">
             <HintPath>$(ManagedDirectory)\Assembly-CSharp.dll</HintPath>
             <Private>False</Private>
@@ -115,15 +112,15 @@
             <Private>False</Private>
         </Reference>
         -->
-    </ItemGroup>
-    <ItemGroup>
-        <EmbeddedResource Include="Images/Icon_TestPassed.png" />
-        <EmbeddedResource Include="Images/Icon_TestFailed.png" />
-        <EmbeddedResource Include="Images/Icon_TestRunning.png" />
-        <EmbeddedResource Include="Images/Icon_TestCanceled.png" />
-        <EmbeddedResource Include="Images/Icon_TestNotRan.png" />
-    </ItemGroup>
-    <ItemGroup>
-      <Folder Include="Properties\" />
-    </ItemGroup>
+	</ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Include="Images/Icon_TestPassed.png" />
+		<EmbeddedResource Include="Images/Icon_TestFailed.png" />
+		<EmbeddedResource Include="Images/Icon_TestRunning.png" />
+		<EmbeddedResource Include="Images/Icon_TestCanceled.png" />
+		<EmbeddedResource Include="Images/Icon_TestNotRan.png" />
+	</ItemGroup>
+	<ItemGroup>
+		<Folder Include="Properties\" />
+	</ItemGroup>
 </Project>
