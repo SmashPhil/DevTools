@@ -1,7 +1,9 @@
 ﻿using System;
+using JetBrains.Annotations;
 
 namespace DevTools.Testing;
 
+[MeansImplicitUse]
 [AttributeUsage(AttributeTargets.Class)]
 public class UnitTestAttribute : Attribute
 {

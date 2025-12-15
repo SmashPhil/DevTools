@@ -53,6 +53,12 @@
 		<DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS</DefineConstants>
 	</PropertyGroup>
 
+	<ItemGroup>
+	  <Compile Remove="Properties\**" />
+	  <EmbeddedResource Remove="Properties\**" />
+	  <None Remove="Properties\**" />
+	</ItemGroup>
+
 	<!-- Dependencies -->
 	<ItemGroup>
 		<PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
@@ -119,8 +125,5 @@
 		<EmbeddedResource Include="Images/Icon_TestRunning.png" />
 		<EmbeddedResource Include="Images/Icon_TestCanceled.png" />
 		<EmbeddedResource Include="Images/Icon_TestNotRan.png" />
-	</ItemGroup>
-	<ItemGroup>
-		<Folder Include="Properties\" />
 	</ItemGroup>
 </Project>

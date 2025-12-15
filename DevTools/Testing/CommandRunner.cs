@@ -1,14 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using DevTools.Testing;
+﻿using DevTools.Testing;
+using System;
 using Verse;
 
 namespace DevTools;
 
 internal static class CommandRunner
 {
-	private static readonly List<TestPlan> TestPlans = [];
-
 	public static Result ExecuteCommandLineArgs(ModContentPack mod)
 	{
 		const string PackageIdArg = "--pid";
