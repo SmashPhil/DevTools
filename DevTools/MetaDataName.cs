@@ -2,7 +2,6 @@
 
 namespace DevTools;
 
-[StaticConstructorOnStartup]
 internal static class MetaDataName
 {
   // Benchmarking

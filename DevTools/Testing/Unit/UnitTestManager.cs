@@ -55,7 +55,7 @@ public class UnitTestManager : IDevToolWithMenu, ITestManager
 
 	bool IDevTool.TryRegisterType(Type type)
 	{
-		UnitTestAttribute attr = type.TryGetAttribute<UnitTestAttribute>();
+    TestClassAttribute attr = type.TryGetAttribute<TestClassAttribute>();
 		if (attr is null || type.IsAbstract)
 			return false;
 		string key = type.FullName;

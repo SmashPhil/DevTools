@@ -5,9 +5,12 @@ namespace DevTools.Testing;
 
 [PublicAPI]
 [AttributeUsage(AttributeTargets.Class)]
-public class UnitTestAttribute : TestClassAttribute
+public class TestClassAttribute : Attribute
 {
-  public UnitTestAttribute(TestType type) : base(type)
+  public TestClassAttribute(TestType type)
   {
+    Type = type;
   }
+
+  public TestType Type { get; }
 }
