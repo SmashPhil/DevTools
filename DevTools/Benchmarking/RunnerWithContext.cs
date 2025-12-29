@@ -54,11 +54,7 @@ internal class RunnerWithContext<T>
 
 	private static (int sampleSize, int partitions) EstimateSampleSize(IntPtr funcPtr, ref T context)
 	{
-		const int TestInterval = 5;
-		const int EstimateIterations = 1000;
-		const int Iterations = EstimateIterations / TestInterval;
-
-		var estimateHarness = TestHarnessWithContext<T>.Create(funcPtr, TestInterval);
+		var estimateHarness = TestHarnessWithContext<T>.Create(funcPtr, Runner.TestInterval);
 		estimateHarness.Invoke(ref context); // warmup
 
 		// Make sure we're not jumping into an expensive estimation, clamp sample size if so
@@ -67,7 +63,7 @@ internal class RunnerWithContext<T>
 		watch.Stop();
 
 		// Max cutoff is 100ms per iteration.
-		if (watch.ElapsedMilliseconds > 100 * TestInterval)
+		if (watch.ElapsedMilliseconds > 100 * Runner.TestInterval)
 		{
 			Log.Warning(
 				"Running benchmark on function that takes a long time to execute. To keep results reliable, iterations cannot be lowered further.");
@@ -76,10 +72,14 @@ internal class RunnerWithContext<T>
 
 		// Estimate good sample size
 		watch.Restart();
-		for (int i = 0; i < Iterations; i++)
-			estimateHarness.Invoke(ref context);
+    for (int i = 0; i < Runner.EstimateIterations; i++)
+    {
+      estimateHarness.Invoke(ref context);
+    }
 		watch.Stop();
-		return Benchmark.GetSampleSize(watch.ElapsedTicks / EstimateIterations);
+
+    long ticks = watch.ElapsedTicks / Runner.EstimateIterations;
+    return ticks > 0 ? Benchmark.GetSampleSize(ticks) : Benchmark.GetMicroBenchmarkSampleSize();
 	}
 
 	private static void Measure(IntPtr funcPtr, TestHarnessWithContext<T> harness,

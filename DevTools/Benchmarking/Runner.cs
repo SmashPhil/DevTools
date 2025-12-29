@@ -6,7 +6,11 @@ namespace DevTools.Benchmarking;
 
 internal class Runner
 {
-	private readonly IntPtr funcPtr;
+  public const int TestInterval = 5;
+  public const int EstimateIterations = 1000;
+  public const int Iterations = EstimateIterations * TestInterval;
+
+  private readonly IntPtr funcPtr;
 	private readonly IntPtr noOpPtr;
 
 	private readonly TestHarness harness;
@@ -51,10 +55,6 @@ internal class Runner
 
 	private static (int sampleSize, int partitions) EstimateSampleSize(IntPtr funcPtr)
 	{
-		const int TestInterval = 5;
-		const int EstimateIterations = 1000;
-		const int Iterations = EstimateIterations / TestInterval;
-
 		var estimateHarness = TestHarness.Create(funcPtr, TestInterval);
 		estimateHarness.Invoke(); // warmup
 
@@ -73,11 +73,14 @@ internal class Runner
 
 		// Estimate good sample size
 		watch.Restart();
-		for (int i = 0; i < Iterations; i++)
-			estimateHarness.Invoke();
+    for (int i = 0; i < Iterations; i++)
+    {
+      estimateHarness.Invoke();
+    }
 		watch.Stop();
-		return Benchmark.GetSampleSize(watch.ElapsedTicks / EstimateIterations);
-	}
+    long ticks = watch.ElapsedTicks / Iterations;
+    return ticks > 0 ? Benchmark.GetSampleSize(ticks) : Benchmark.GetMicroBenchmarkSampleSize();
+  }
 
 	private static void Measure(IntPtr funcPtr, TestHarness harness, int sampleSize, int partitions, int[] thresholds,
 		long[] ticks)

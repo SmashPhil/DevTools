@@ -52,22 +52,26 @@ public static class Benchmark
 			> 10_000  => (sampleSize: 1_000, partitions: 10),
 			> 1_000   => (sampleSize: 10_000, partitions: 20),
 			> 100     => (sampleSize: 100_000, partitions: 50),
-			// For microbenchmarking. We're getting closer to Stopwatch granularity, more aggression on sample size
-			// to drown out overhead from Stopwatch.
 			> 10 => (sampleSize: 1_000_000, partitions: 100),
-			> 1  => (sampleSize: 10_000_000, partitions: 100),
-			// With 1k iterations for estimate this is unlikely to occur. Requires heavy amortization to get even
-			// remotely close to usable results. 
-			_ => (sampleSize: 100_000_000, partitions: 100)
+      // With 1k iterations for estimate this is unlikely to occur. Requires heavy amortization to get even
+      // remotely close to usable results. 
+      _  => (sampleSize: 100_000_000, partitions: 100)
 		};
 	}
 
-	/// <returns>
-	/// Time to execute <paramref name="funcPtr"/> 
-	/// </returns>
-	/// <param name="funcPtr">Function to execute each iteration.</param>
-	/// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-	[MethodImpl(MethodImplOptions.NoOptimization)]
+  internal static (int sampleSize, int partitions) GetMicroBenchmarkSampleSize()
+  {
+    // For microbenchmarking. We're closer to Stopwatch granularity, we need more aggression on sample size
+    // to drown out overhead from Stopwatch.
+    return (sampleSize: 1_000_000_000, partitions: 10);
+  }
+
+  /// <returns>
+  /// Time to execute <paramref name="funcPtr"/> 
+  /// </returns>
+  /// <param name="funcPtr">Function to execute each iteration.</param>
+  /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
+  [MethodImpl(MethodImplOptions.NoOptimization)]
 	public static unsafe Result Run(IntPtr funcPtr, Measurement measurement = Measurement.Auto)
 	{
 		const int UnrollFactor = 16;
