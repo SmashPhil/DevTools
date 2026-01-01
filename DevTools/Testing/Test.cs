@@ -61,6 +61,11 @@ public static class Test
     Expect.SendSignal(Status.Skipped, "Test.Skip", message, skipFrames: 2);
   }
 
+  public static void Fail(string message)
+  {
+    Expect.SendSignal(Status.Failed, label: "Test Failed", message);
+  }
+
   public static IEnumerator Suspend(float secondsTimeOut, string message = null)
   {
     int countdownTime = Mathf.CeilToInt(secondsTimeOut);
