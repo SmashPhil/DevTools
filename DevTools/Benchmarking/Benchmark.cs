@@ -21,43 +21,45 @@ namespace DevTools.Benchmarking;
 /// </remarks>
 public static class Benchmark
 {
-	private static void ShowWarnings()
-	{
-		// Can't log as an error since Ludeon's message window is not thread safe and will crash the game.
+  private static void ShowWarnings()
+  {
+    // Can't log as an error since Ludeon's message window is not thread safe and will crash the game.
 #if RELEASE
-		if (Debugger.IsAttached)
-		{
-			Log.WarningOnce(
-				"Benchmarks should not be executed with debugger attached. The results will be wildly inaccurate.",
-				"Benchmark.DebuggerAttached".GetHashCode());
-		}
+    if (Debugger.IsAttached)
+    {
+      Log.WarningOnce(
+        "Benchmarks should not be executed with debugger attached. The results will be wildly inaccurate.",
+        "Benchmark.DebuggerAttached".GetHashCode());
+    }
 #endif
-	}
+  }
 
-	internal static void GetPartitionedArrays(int sampleSize, int partitions, out int[] thresholds, out long[] overhead,
-		out long[] results)
-	{
-		thresholds = new int[partitions];
-		for (int i = 0; i < partitions; i++)
-			thresholds[i] = Mathf.CeilToInt(sampleSize * (float)(i + 1) / partitions);
-		overhead = new long[partitions];
-		results = new long[partitions];
-	}
+  internal static void GetPartitionedArrays(int sampleSize, int partitions, out int[] thresholds, out long[] overhead,
+    out long[] results)
+  {
+    thresholds = new int[partitions];
+    for (int i = 0; i < partitions; i++)
+    {
+      thresholds[i] = Mathf.CeilToInt(sampleSize * (float)(i + 1) / partitions);
+    }
+    overhead = new long[partitions];
+    results = new long[partitions];
+  }
 
-	internal static (int sampleSize, int partitions) GetSampleSize(long ticks)
-	{
-		return Result.ToMicroseconds(ticks) switch
-		{
-			> 100_000 => (sampleSize: 100, partitions: 10),
-			> 10_000  => (sampleSize: 1_000, partitions: 10),
-			> 1_000   => (sampleSize: 10_000, partitions: 20),
-			> 100     => (sampleSize: 100_000, partitions: 50),
-			> 10 => (sampleSize: 1_000_000, partitions: 100),
+  internal static (int sampleSize, int partitions) GetSampleSize(long ticks)
+  {
+    return ToMicroseconds(ticks) switch
+    {
+      > 100_000 => (sampleSize: 100, partitions: 10),
+      > 10_000  => (sampleSize: 1_000, partitions: 10),
+      > 1_000   => (sampleSize: 10_000, partitions: 20),
+      > 100     => (sampleSize: 100_000, partitions: 50),
+      > 10 => (sampleSize: 1_000_000, partitions: 100),
       // With 1k iterations for estimate this is unlikely to occur. Requires heavy amortization to get even
       // remotely close to usable results. 
       _  => (sampleSize: 100_000_000, partitions: 100)
-		};
-	}
+    };
+  }
 
   internal static (int sampleSize, int partitions) GetMicroBenchmarkSampleSize()
   {
@@ -69,298 +71,320 @@ public static class Benchmark
   /// <returns>
   /// Time to execute <paramref name="funcPtr"/> 
   /// </returns>
+  /// <param name="instance">Benchmark container instance to invoke <paramref name="funcPtr"/> from.</param>
   /// <param name="funcPtr">Function to execute each iteration.</param>
   /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-  [MethodImpl(MethodImplOptions.NoOptimization)]
-	public static unsafe Result Run(IntPtr funcPtr, Measurement measurement = Measurement.Auto)
-	{
-		const int UnrollFactor = 16;
+  public static unsafe Result Run(object instance, IntPtr funcPtr, Measurement measurement = Measurement.Auto)
+  {
+    const int UnrollFactor = 16;
 
-		ShowWarnings();
+    ShowWarnings();
 
-		IntPtr noOpPtr = (IntPtr)(delegate*<void>)&NoOp;
+    IntPtr noOpPtr = (IntPtr)(delegate*<object, void>)&NoOp;
+    var harness = TestHarness.Create(instance, funcPtr, UnrollFactor);
+    var noOpHarness = TestHarness.CreateStatic(noOpPtr, UnrollFactor);
+    Runner.Function testFunc = new Runner.Function { funcPtr = funcPtr, harness = harness };
+    Runner.Function noOpFunc = new Runner.Function { funcPtr = noOpPtr, harness = noOpHarness };
 
-		var harness = TestHarness.Create(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarness.Create(noOpPtr, UnrollFactor);
+    Runner runner = new(testFunc, noOpFunc)
+    {
+      Measurement = measurement
+    };
+    return runner.Execute();
 
-		Runner runner = new(funcPtr, noOpPtr, harness, noOpHarness)
-		{
-			Measurement = measurement
-		};
-		return runner.Execute();
+    // Stub for function invocation and loop overhead
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static void NoOp(object instance)
+    {
+    }
+  }
 
-		// Stub for function invocation and loop overhead
-		[MethodImpl(MethodImplOptions.NoInlining)]
-		static void NoOp()
-		{
-		}
-	}
+  /// <returns>
+  /// Time to execute <paramref name="funcPtr"/> with return type <typeparamref name="R"/>
+  /// </returns>
+  /// <remarks>Return from benchmark methods to prevent JIT dead code optimizations.</remarks>
+  /// <param name="instance">Benchmark container instance to invoke <paramref name="funcPtr"/> from.</param>
+  /// <param name="funcPtr">Function to execute each iteration.</param>
+  /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
+  public static unsafe Result Run<R>(object instance, IntPtr funcPtr, Measurement measurement = Measurement.Auto)
+  {
+    const int UnrollFactor = 16;
 
-	/// <returns>
-	/// Time to execute <paramref name="funcPtr"/> with return type <typeparamref name="R"/>
-	/// </returns>
-	/// <remarks>Return from benchmark methods to prevent JIT dead code optimizations.</remarks>
-	/// <param name="funcPtr">Function to execute each iteration.</param>
-	/// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-	[MethodImpl(MethodImplOptions.NoOptimization)]
-	public static unsafe Result Run<R>(IntPtr funcPtr, Measurement measurement = Measurement.Auto)
-	{
-		const int UnrollFactor = 16;
+    ShowWarnings();
 
-		ShowWarnings();
+    IntPtr noOpPtr = (IntPtr)(delegate*<object, R>)&NoOp;
+    var harness = TestHarness.Create<R>(instance, funcPtr, UnrollFactor);
+    var noOpHarness = TestHarness.CreateStatic<R>(noOpPtr, UnrollFactor);
+    Runner.Function testFunc = new Runner.Function { funcPtr = funcPtr, harness = harness };
+    Runner.Function noOpFunc = new Runner.Function { funcPtr = noOpPtr, harness = noOpHarness };
 
-		IntPtr noOpPtr = (IntPtr)(delegate*<R>)&NoOp;
+    Runner runner = new(testFunc, noOpFunc)
+    {
+      Measurement = measurement
+    };
+    return runner.Execute();
 
-		var harness = TestHarness.Create<R>(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarness.Create<R>(noOpPtr, UnrollFactor);
+    // Stub for function invocation and loop overhead
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static R NoOp(object instance)
+    {
+      return default;
+    }
+  }
 
-		Runner runner = new(funcPtr, noOpPtr, harness, noOpHarness)
-		{
-			Measurement = measurement
-		};
-		return runner.Execute();
+  /// <returns>
+  /// Time to execute <paramref name="funcPtr"/> 
+  /// </returns>
+  /// <param name="funcPtr">Function to execute each iteration.</param>
+  /// <param name="context">Object passed in with each function call.</param>
+  /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
+  public static unsafe Result Run<T>(IntPtr funcPtr, T context,
+    Measurement measurement = Measurement.Auto) where T : struct
+  {
+    const int UnrollFactor = 16;
 
-		// Stub for function invocation and loop overhead
-		[MethodImpl(MethodImplOptions.NoInlining)]
-		static R NoOp()
-		{
-			return default;
-		}
-	}
+    ShowWarnings();
 
-	/// <returns>
-	/// Time to execute <paramref name="funcPtr"/> 
-	/// </returns>
-	/// <param name="funcPtr">Function to execute each iteration.</param>
-	/// <param name="context">Object passed in with each function call.</param>
-	/// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-	public static unsafe Result Run<T>(IntPtr funcPtr, T context,
-		Measurement measurement = Measurement.Auto) where T : struct
-	{
-		const int UnrollFactor = 16;
+    IntPtr noOpPtr = (IntPtr)(delegate*<ref T, void>)&NoOp;
 
-		ShowWarnings();
+    var harness = TestHarnessWithContext<T>.Create(funcPtr, UnrollFactor);
+    var noOpHarness = TestHarnessWithContext<T>.Create(noOpPtr, UnrollFactor);
 
-		IntPtr noOpPtr = (IntPtr)(delegate*<ref T, void>)&NoOp;
+    RunnerWithContext<T> runner = new(funcPtr, noOpPtr, harness, noOpHarness)
+    {
+      Measurement = measurement
+    };
+    return runner.Execute(ref context);
 
-		var harness = TestHarnessWithContext<T>.Create(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarnessWithContext<T>.Create(noOpPtr, UnrollFactor);
+    // Stub for function invocation and loop overhead
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static void NoOp(ref T _)
+    {
+    }
+  }
 
-		RunnerWithContext<T> runner = new(funcPtr, noOpPtr, harness, noOpHarness)
-		{
-			Measurement = measurement
-		};
-		return runner.Execute(ref context);
+  /// <returns>
+  /// Time to execute <paramref name="funcPtr"/> with return type <typeparamref name="R"/>
+  /// </returns>
+  /// <remarks>Return from benchmark methods to prevent JIT dead code optimizations.</remarks>
+  /// <param name="funcPtr">Function pointer to invoke each iteration.</param>
+  /// <param name="context">Object passed in with each function call.</param>
+  /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
+  public static unsafe Result Run<T, R>(IntPtr funcPtr, T context,
+    Measurement measurement = Measurement.Auto) where T : struct
+  {
+    const int UnrollFactor = 16;
 
-		// Stub for function invocation and loop overhead
-		[MethodImpl(MethodImplOptions.NoInlining)]
-		static void NoOp(ref T _)
-		{
-		}
-	}
+    ShowWarnings();
 
-	/// <returns>
-	/// Time to execute <paramref name="funcPtr"/> with return type <typeparamref name="R"/>
-	/// </returns>
-	/// <remarks>Return from benchmark methods to prevent JIT dead code optimizations.</remarks>
-	/// <param name="funcPtr">Function pointer to invoke each iteration.</param>
-	/// <param name="context">Object passed in with each function call.</param>
-	/// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-	public static unsafe Result Run<T, R>(IntPtr funcPtr, T context,
-		Measurement measurement = Measurement.Auto) where T : struct
-	{
-		const int UnrollFactor = 16;
+    IntPtr noOpPtr = (IntPtr)(delegate*<ref T, R>)&NoOp;
 
-		ShowWarnings();
+    // Warmup
+    DeadCodeHelper.KeepAliveReadOnly<R>(default);
 
-		IntPtr noOpPtr = (IntPtr)(delegate*<ref T, R>)&NoOp;
+    var harness = TestHarnessWithContext<T>.Create<R>(funcPtr, UnrollFactor);
+    var noOpHarness = TestHarnessWithContext<T>.Create<R>(noOpPtr, UnrollFactor);
 
-		// Warmup
-		DeadCodeHelper.KeepAliveReadOnly<R>(default);
+    RunnerWithContext<T> runner = new(funcPtr, noOpPtr, harness, noOpHarness)
+    {
+      Measurement = measurement
+    };
+    return runner.Execute(ref context);
 
-		var harness = TestHarnessWithContext<T>.Create<R>(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarnessWithContext<T>.Create<R>(noOpPtr, UnrollFactor);
+    // Stub for function invocation and loop overhead
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static R NoOp(ref T _)
+    {
+      return default;
+    }
+  }
 
-		RunnerWithContext<T> runner = new(funcPtr, noOpPtr, harness, noOpHarness)
-		{
-			Measurement = measurement
-		};
-		return runner.Execute(ref context);
+  /// <returns>
+  /// Time to execute <paramref name="action"/> 
+  /// </returns>
+  /// <remarks>
+  /// Uses delegate for benchmarking non-static functions or functions that use closure. This implementation will
+  /// have lower accuracy from extra indirection and any closure from the caller. Only use for rough estimates on
+  /// higher invocation cost methods.
+  /// </remarks>
+  /// <param name="action">Function to execute each iteration.</param>
+  /// <param name="measurement">Measurement of accuracy for benchmark results.</param>
+  public static Result Run(Action action, Measurement measurement = Measurement.Auto)
+  {
+    return Run(Marshal.GetFunctionPointerForDelegate(action), measurement);
+  }
 
-		// Stub for function invocation and loop overhead
-		[MethodImpl(MethodImplOptions.NoInlining)]
-		static R NoOp(ref T _)
-		{
-			return default;
-		}
-	}
+  public static string MeasurementSuffix(Measurement measurement)
+  {
+    return measurement switch
+    {
+      Measurement.Seconds      => "s",
+      Measurement.Milliseconds => "ms",
+      Measurement.Microseconds => "\u00b5s",
+      Measurement.Nanoseconds  => "ns",
+      // Auto should never be retained, it should be auto converted when Result object is created
+      Measurement.Auto => throw new InvalidOperationException(nameof(measurement)),
+      _                => throw new NotImplementedException(),
+    };
+  }
 
-	/// <returns>
-	/// Time to execute <paramref name="action"/> 
-	/// </returns>
-	/// <remarks>
-	/// Uses delegate for benchmarking non-static functions or functions that use closure. This implementation will
-	/// have lower accuracy from extra indirection and any closure from the caller. Only use for rough estimates on
-	/// higher invocation cost methods.
-	/// </remarks>
-	/// <param name="action">Function to execute each iteration.</param>
-	/// <param name="measurement">Measurement of accuracy for benchmark results.</param>
-	public static Result Run(Action action, Measurement measurement = Measurement.Auto)
-	{
-		return Run(Marshal.GetFunctionPointerForDelegate(action), measurement);
-	}
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static double ToSeconds(double ticks)
+  {
+    return ticks / Stopwatch.Frequency;
+  }
 
-	public static string MeasurementSuffix(Measurement measurement)
-	{
-		return measurement switch
-		{
-			Measurement.Seconds      => "s",
-			Measurement.Milliseconds => "ms",
-			Measurement.Microseconds => "\u00b5s",
-			Measurement.Nanoseconds  => "ns",
-			// Auto should never be retained, it should be auto converted when Result object is created
-			Measurement.Auto => throw new InvalidOperationException(nameof(measurement)),
-			_                => throw new NotImplementedException(),
-		};
-	}
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static long ToSeconds(long ticks)
+  {
+    return ticks / Stopwatch.Frequency;
+  }
 
-	public enum Setting
-	{
-		None = 0,
-		HasContext = 1 << 0,
-		HasReturn = 1 << 1
-	}
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static double ToMilliseconds(double ticks)
+  {
+    return ticks * 1000 / Stopwatch.Frequency;
+  }
 
-	public enum Measurement
-	{
-		Auto,
-		Seconds,
-		Milliseconds,
-		Microseconds,
-		Nanoseconds,
-	}
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static long ToMilliseconds(long ticks)
+  {
+    checked
+    {
+      return ticks * 1000 / Stopwatch.Frequency;
+    }
+  }
 
-	[PublicAPI]
-	public readonly record struct Result
-	{
-		// ReSharper disable ConvertToAutoProperty
-		private static readonly Measurement[] OrderedMeasurements =
-		[
-			Measurement.Seconds, Measurement.Milliseconds,
-			Measurement.Microseconds, Measurement.Nanoseconds
-		];
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static double ToMicroseconds(double ticks)
+  {
+    return ticks * 1_000_000 / Stopwatch.Frequency;
+  }
 
-		private readonly int decimalPlaces;
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static long ToMicroseconds(long ticks)
+  {
+    return ticks * 1_000_000 / Stopwatch.Frequency;
+  }
 
-		private readonly Measurement measurement;
-		private readonly int samples;
-		private readonly int partitions;
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static double ToNanoseconds(double ticks)
+  {
+    return ticks * 1_000_000_000 / Stopwatch.Frequency;
+  }
 
-		private readonly double total;
-		private readonly double mean;
-		private readonly double median;
-		private readonly double stdDev;
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  internal static long ToNanoseconds(long ticks)
+  {
+    return ticks * 1_000_000_000 / Stopwatch.Frequency;
+  }
 
-		public Result(long[] ticks, int samples,
-			Measurement measurement = Measurement.Auto,
-			int decimalPlaces = 4)
-		{
-			this.decimalPlaces = decimalPlaces;
-			this.samples = samples;
-			this.partitions = ticks.Length;
+  public enum Measurement
+  {
+    Auto,
+    Seconds,
+    Milliseconds,
+    Microseconds,
+    Nanoseconds,
+  }
 
-			total = ticks.Sum();
+  [PublicAPI]
+  public readonly record struct Result
+  {
+    // ReSharper disable ConvertToAutoProperty
+    private static readonly Measurement[] OrderedMeasurements =
+    [
+      Measurement.Seconds, Measurement.Milliseconds,
+      Measurement.Microseconds, Measurement.Nanoseconds
+    ];
 
-			int callsPerPartition = samples / ticks.Length;
-			mean = ticks.Mean() / callsPerPartition;
-			median = ticks.Median() / callsPerPartition;
-			stdDev = ticks.StdDev() / callsPerPartition;
+    private readonly int decimalPlaces;
 
-			this.measurement = measurement == Measurement.Auto ? PreferredMeasurement() : measurement;
-			total = Converted(total, this.measurement);
-			mean = Converted(mean, this.measurement);
-			median = Converted(median, this.measurement);
-			stdDev = Converted(stdDev, this.measurement);
-		}
+    private readonly Measurement measurement;
+    private readonly int samples;
+    private readonly int partitions;
 
-		public Result(Stopwatch stopwatch, int iterations, Measurement measurement = Measurement.Auto,
-			int decimalPlaces = 4) : this([stopwatch.ElapsedTicks], iterations, measurement,
-			decimalPlaces)
-		{
-		}
+    private readonly double total;
+    private readonly double mean;
+    private readonly double median;
+    private readonly double stdDev;
 
-		public int Samples => samples;
+    public Result(long[] ticks, int samples,
+      Measurement measurement = Measurement.Auto,
+      int decimalPlaces = 4)
+    {
+      this.decimalPlaces = decimalPlaces;
+      this.samples = samples;
+      this.partitions = ticks.Length;
 
-		public int Partitions => partitions;
+      total = ticks.Sum();
 
-		public double Total => total;
+      int callsPerPartition = samples / ticks.Length;
+      mean = ticks.Mean() / callsPerPartition;
+      median = ticks.Median() / callsPerPartition;
+      stdDev = ticks.StdDev() / callsPerPartition;
 
-		public double Mean => mean;
+      this.measurement = measurement == Measurement.Auto ? PreferredMeasurement() : measurement;
+      total = Converted(total, this.measurement);
+      mean = Converted(mean, this.measurement);
+      median = Converted(median, this.measurement);
+      stdDev = Converted(stdDev, this.measurement);
+    }
 
-		public double Median => median;
+    public Result(Stopwatch stopwatch, int iterations, Measurement measurement = Measurement.Auto,
+      int decimalPlaces = 4) : this([stopwatch.ElapsedTicks], iterations, measurement,
+      decimalPlaces)
+    {
+    }
 
-		public double StdDev => stdDev;
+    public int Samples => samples;
 
-		public string Formatted(double value)
-		{
-			return
-				$"{value.ToString($"0.{new string('0', decimalPlaces)}")} {MeasurementSuffix(measurement)}";
-		}
+    public int Partitions => partitions;
 
-		public override string ToString()
-		{
-			return
-				$"Sample={samples} | Total={Formatted(Total)} | Mean={Formatted(Mean)}";
-		}
+    public double Total => total;
 
-		private Measurement PreferredMeasurement()
-		{
-			foreach (Measurement curMeasurement in OrderedMeasurements)
-			{
-				double mTotal = Converted(Total, curMeasurement);
-				double mMean = Converted(Mean, curMeasurement);
-				double mMedian = Converted(Median, curMeasurement);
-				if (mTotal >= 0.1 && mMean >= 0.1 && mMedian >= 0.1)
-					return curMeasurement;
-			}
-			return Measurement.Nanoseconds;
-		}
+    public double Mean => mean;
 
-		private static double Converted(double ticks, Measurement measurement)
-		{
-			return measurement switch
-			{
-				Measurement.Seconds      => ToSeconds(ticks),
-				Measurement.Milliseconds => ToMilliseconds(ticks),
-				Measurement.Microseconds => ToMicroseconds(ticks),
-				Measurement.Nanoseconds  => ToNanoseconds(ticks),
-				Measurement.Auto         => throw new InvalidOperationException(),
-				_                        => throw new NotImplementedException(nameof(Measurement)),
-			};
-		}
+    public double Median => median;
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal static double ToSeconds(double ticks)
-		{
-			return ticks / Stopwatch.Frequency;
-		}
+    public double StdDev => stdDev;
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal static double ToMilliseconds(double ticks)
-		{
-			return ticks * 1000 / Stopwatch.Frequency;
-		}
+    public string Formatted(double value)
+    {
+      return
+        $"{value.ToString($"0.{new string('0', decimalPlaces)}")} {MeasurementSuffix(measurement)}";
+    }
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal static double ToMicroseconds(double ticks)
-		{
-			return ticks * 1_000_000 / Stopwatch.Frequency;
-		}
+    public override string ToString()
+    {
+      return
+        $"Sample={samples} | Total={Formatted(Total)} | Mean={Formatted(Mean)}";
+    }
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal static double ToNanoseconds(double ticks)
-		{
-			return ticks * 1_000_000_000 / Stopwatch.Frequency;
-		}
-	}
+    private Measurement PreferredMeasurement()
+    {
+      foreach (Measurement curMeasurement in OrderedMeasurements)
+      {
+        double mTotal = Converted(Total, curMeasurement);
+        double mMean = Converted(Mean, curMeasurement);
+        double mMedian = Converted(Median, curMeasurement);
+        if (mTotal >= 0.1 && mMean >= 0.1 && mMedian >= 0.1)
+          return curMeasurement;
+      }
+      return Measurement.Nanoseconds;
+    }
+
+    private static double Converted(double ticks, Measurement measurement)
+    {
+      return measurement switch
+      {
+        Measurement.Seconds      => ToSeconds(ticks),
+        Measurement.Milliseconds => ToMilliseconds(ticks),
+        Measurement.Microseconds => ToMicroseconds(ticks),
+        Measurement.Nanoseconds  => ToNanoseconds(ticks),
+        Measurement.Auto         => throw new InvalidOperationException(),
+        _                        => throw new NotImplementedException(nameof(Measurement)),
+      };
+    }
+  }
 }

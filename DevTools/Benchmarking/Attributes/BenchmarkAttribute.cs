@@ -3,7 +3,7 @@ using JetBrains.Annotations;
 
 namespace DevTools.Benchmarking;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+[PublicAPI, MeansImplicitUse]
 [AttributeUsage(AttributeTargets.Method)]
 public class BenchmarkAttribute : Attribute
 {

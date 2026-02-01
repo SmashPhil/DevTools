@@ -8,100 +8,148 @@ namespace DevTools.Benchmarking;
 
 internal sealed class TestHarness
 {
-	[UsedImplicitly]
+  [UsedImplicitly]
+  private readonly object instance;
+  [UsedImplicitly]
 	private readonly IntPtr funcPtr;
 
-	private Action container;
+  private UnrolledBatch container;
 
-	private TestHarness(IntPtr funcPtr)
+  private delegate void UnrolledBatch(object instance);
+
+  private enum MethodType
+  {
+    Instance,
+    Static
+  }
+
+	private TestHarness(object instance, IntPtr funcPtr)
 	{
+		this.instance = instance;
 		this.funcPtr = funcPtr;
 	}
 
 	public int UnrollFactor { get; private set; }
 
-	public void Invoke()
+  public void Invoke()
+  {
+    container(instance);
+  }
+
+	public static TestHarness Create(object instance, IntPtr funcPtr, int unrollFactor)
 	{
-		container();
-	}
+    TestHarness testHarness = new(instance, funcPtr);
+    testHarness.container = testHarness.MakeDelegate(unrollFactor, MethodType.Instance);
+    testHarness.UnrollFactor = unrollFactor;
+    return testHarness;
+  }
 
-	public static TestHarness Create(IntPtr funcPtr, int unrollFactor)
+  public static TestHarness CreateStatic(IntPtr funcPtr, int unrollFactor)
+  {
+    TestHarness testHarness = new(null, funcPtr);
+    testHarness.container = testHarness.MakeDelegate(unrollFactor, MethodType.Static);
+    testHarness.UnrollFactor = unrollFactor;
+    return testHarness;
+  }
+
+  public static TestHarness Create<R>(object instance, IntPtr funcPtr, int unrollFactor)
 	{
-		DynamicMethod method = new("TestHarness",
-			typeof(void), [typeof(TestHarness)],
-			typeof(TestHarness).Module,
-			skipVisibility: true);
-
-		FieldInfo funcPtrField = AccessTools.Field(typeof(TestHarness), nameof(funcPtr));
-
-		ILGenerator ilg = method.GetILGenerator();
-
-		ilg.DeclareLocal(typeof(IntPtr));
-
-		ilg.Emit(OpCodes.Ldarg_0);
-		ilg.Emit(OpCodes.Ldfld, funcPtrField);
-		ilg.Emit(OpCodes.Stloc_0);
-
-		for (int i = 0; i < unrollFactor; i++)
-		{
-			// funcPtr()
-			ilg.Emit(OpCodes.Ldloc_0); // funcPtr
-			ilg.EmitCalli(OpCodes.Calli,
-				CallingConventions.Standard,
-				returnType: typeof(void),
-				parameterTypes: [],
-				optionalParameterTypes: null);
-		}
-
-		ilg.Emit(OpCodes.Ret);
-
-		TestHarness testHarness = new(funcPtr);
-		testHarness.container = (Action)method.CreateDelegate(typeof(Action), testHarness);
-		testHarness.UnrollFactor = unrollFactor;
+		TestHarness testHarness = new(instance, funcPtr);
+    testHarness.container = testHarness.MakeDelegate<R>(unrollFactor, MethodType.Instance);
+    testHarness.UnrollFactor = unrollFactor;
 		return testHarness;
 	}
 
-	public static TestHarness Create<R>(IntPtr funcPtr, int unrollFactor)
-	{
-		DynamicMethod method = new("TestHarness",
-			typeof(void), [typeof(TestHarness)],
-			typeof(TestHarness).Module,
-			skipVisibility: true);
+  public static TestHarness CreateStatic<R>(IntPtr funcPtr, int unrollFactor)
+  {
+    TestHarness testHarness = new(null, funcPtr);
+    testHarness.container = testHarness.MakeDelegate<R>(unrollFactor, MethodType.Instance);
+    testHarness.UnrollFactor = unrollFactor;
+    return testHarness;
+  }
 
-		FieldInfo funcPtrField = AccessTools.Field(typeof(TestHarness), nameof(funcPtr));
-		MethodInfo deadCodeHelper = AccessTools.Method(typeof(DeadCodeHelper), nameof(DeadCodeHelper.KeepAliveReadOnly),
-			generics: [typeof(R)]);
+  private UnrolledBatch MakeDelegate(int unrollFactor, MethodType methodType)
+  {
+    DynamicMethod method = new("TestHarness",
+      typeof(void), [typeof(TestHarness), typeof(object)],
+      typeof(TestHarness).Module,
+      skipVisibility: true);
 
-		ILGenerator ilg = method.GetILGenerator();
+    FieldInfo funcPtrField = AccessTools.Field(typeof(TestHarness), nameof(funcPtr));
 
-		ilg.DeclareLocal(typeof(IntPtr));
-		ilg.DeclareLocal(typeof(R));
+    ILGenerator ilg = method.GetILGenerator();
 
-		ilg.Emit(OpCodes.Ldarg_0);
-		ilg.Emit(OpCodes.Ldfld, funcPtrField);
-		ilg.Emit(OpCodes.Stloc_0);
+    ilg.DeclareLocal(typeof(IntPtr));
 
-		for (int i = 0; i < unrollFactor; i++)
-		{
-			// funcPtr()
-			ilg.Emit(OpCodes.Ldloc_0); // funcPtr
-			ilg.EmitCalli(OpCodes.Calli,
-				CallingConventions.Standard,
-				returnType: typeof(R),
-				parameterTypes: [],
-				optionalParameterTypes: null);
+    ilg.Emit(OpCodes.Ldarg_0);
+    ilg.Emit(OpCodes.Ldfld, funcPtrField);
+    ilg.Emit(OpCodes.Stloc_0);
 
-			// DeadCodeHelper.KeepAliveReadOnly(in result);
-			ilg.Emit(OpCodes.Stloc_1);
-			ilg.Emit(OpCodes.Ldloca_S, 1);
-			ilg.Emit(OpCodes.Call, deadCodeHelper);
-		}
+    Type[] paramerTypes = methodType is MethodType.Static ? [typeof(object)] : [];
+    CallingConventions conv = methodType is MethodType.Static
+      ? CallingConventions.Standard
+      : CallingConventions.HasThis;
+    for (int i = 0; i < unrollFactor; i++)
+    {
+      // instance.funcPtr()
+      ilg.Emit(OpCodes.Ldarg_1);
+      ilg.Emit(OpCodes.Ldloc_0);
+      ilg.EmitCalli(OpCodes.Calli, 
+        conv,
+        returnType: typeof(void),
+        paramerTypes,
+        optionalParameterTypes: null);
+    }
 
-		ilg.Emit(OpCodes.Ret);
+    ilg.Emit(OpCodes.Ret);
 
-		TestHarness testHarness = new(funcPtr);
-		testHarness.container = (Action)method.CreateDelegate(typeof(Action), testHarness);
-		testHarness.UnrollFactor = unrollFactor;
-		return testHarness;
-	}
+    return (UnrolledBatch)method.CreateDelegate(typeof(UnrolledBatch), target: this);
+  }
+
+  private UnrolledBatch MakeDelegate<R>(int unrollFactor, MethodType methodType)
+  {
+    DynamicMethod method = new("TestHarness",
+      typeof(void), [typeof(TestHarness), typeof(object)],
+      typeof(TestHarness).Module,
+      skipVisibility: true);
+
+    FieldInfo funcPtrField = AccessTools.Field(typeof(TestHarness), nameof(funcPtr));
+    MethodInfo deadCodeHelper = AccessTools.Method(typeof(DeadCodeHelper), nameof(DeadCodeHelper.KeepAliveReadOnly),
+      generics: [typeof(R)]);
+
+    ILGenerator ilg = method.GetILGenerator();
+
+    ilg.DeclareLocal(typeof(IntPtr));
+    ilg.DeclareLocal(typeof(R));
+
+    ilg.Emit(OpCodes.Ldarg_0);
+    ilg.Emit(OpCodes.Ldfld, funcPtrField);
+    ilg.Emit(OpCodes.Stloc_0);
+
+    Type[] paramerTypes = methodType is MethodType.Static ? [typeof(object)] : [];
+    CallingConventions conv = methodType is MethodType.Static
+      ? CallingConventions.Standard
+      : CallingConventions.HasThis;
+    for (int i = 0; i < unrollFactor; i++)
+    {
+      // loc1 = this.funcPtr();
+      ilg.Emit(OpCodes.Ldarg_1);
+      ilg.Emit(OpCodes.Ldloc_0); // funcPtr
+      ilg.EmitCalli(OpCodes.Calli, 
+        conv,
+        returnType: typeof(R),
+        paramerTypes,
+        optionalParameterTypes: null);
+
+      ilg.Emit(OpCodes.Stloc_1);
+    }
+
+    // DeadCodeHelper.KeepAliveReadOnly(in result);
+    ilg.Emit(OpCodes.Ldloca_S, 1);
+    ilg.Emit(OpCodes.Call, deadCodeHelper);
+
+    ilg.Emit(OpCodes.Ret);
+
+    return (UnrolledBatch)method.CreateDelegate(typeof(UnrolledBatch), target: this);
+  }
 }

@@ -3,7 +3,7 @@ using JetBrains.Annotations;
 
 namespace DevTools.Testing;
 
-[PublicAPI]
+[PublicAPI, MeansImplicitUse]
 [AttributeUsage(AttributeTargets.Class)]
 public class UnitTestAttribute : TestClassAttribute
 {

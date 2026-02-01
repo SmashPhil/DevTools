@@ -81,7 +81,7 @@ public static class DeadCodeHelper
 	[MethodImpl(MethodImplOptions.NoInlining)]
 	public static void Consume(object value)
 	{
-		// Write volatile field to prevent dead code elimination, then set back to null to avoid affecting GC.
+		// Write volatile field to prevent dead code elimination
 		objectHolder = value;
 		objectHolder = null;
 	}

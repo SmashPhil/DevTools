@@ -7,7 +7,8 @@ namespace DevTools.Benchmarking;
 /// <summary>
 /// Marks a class as a benchmark container discoverable by the benchmark manager.
 /// </summary>
-[PublicAPI, AttributeUsage(AttributeTargets.Class)]
+[PublicAPI, MeansImplicitUse]
+[AttributeUsage(AttributeTargets.Class)]
 public class BenchmarkClassAttribute : Attribute
 {
 	public BenchmarkClassAttribute()

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using Verse;
 
 namespace DevTools.Benchmarking;
@@ -46,10 +47,14 @@ internal class RunnerWithContext<T>
 		Measure(noOpPtr, noOpHarness, ref warmupContext, sampleSize, partitions, thresholds, overhead);
 		Measure(funcPtr, harness, ref context, sampleSize, partitions, thresholds, results);
 
-		for (int i = 0; i < partitions; i++)
-			results[i] -= overhead[i];
+    long median = overhead.MedianLong();
 
-		return new Benchmark.Result(results, sampleSize, Measurement);
+    for (int i = 0; i < partitions; i++)
+    {
+      results[i] -= median;
+    }
+
+    return new Benchmark.Result(results, sampleSize, Measurement);
 	}
 
 	private static (int sampleSize, int partitions) EstimateSampleSize(IntPtr funcPtr, ref T context)
