@@ -5,7 +5,8 @@ namespace DevTools.Testing;
 
 [PublicAPI]
 [AttributeUsage(AttributeTargets.Class)]
-public class UnitTestAttribute : TestClassAttribute
+[Obsolete("Use [TestFixture] instead.")]
+public class UnitTestAttribute : TestFixtureAttribute
 {
   public UnitTestAttribute(TestType type) : base(type)
   {

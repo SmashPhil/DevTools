@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using Verse;
@@ -12,6 +13,8 @@ public abstract class SelectionManager<T> where T : ISelectable
   public readonly HashSet<T> selected = [];
 
   public bool AnySelected => selected.Count > 0;
+
+  protected abstract IEnumerable<T> AllItems { get; }
 
   private static bool ShiftDown =>
     Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
@@ -35,7 +38,7 @@ public abstract class SelectionManager<T> where T : ISelectable
     return selected.Contains(item);
   }
 
-  public void HandleClicks(Rect rect, T item)
+  public void MouseEventArea(Rect rect, T item)
   {
     if (Event.current is { type: EventType.MouseUp })
     {
@@ -49,7 +52,20 @@ public abstract class SelectionManager<T> where T : ISelectable
         case 0:
           if (ShiftDown)
           {
-            selected.Add(item);
+            if (AnySelected)
+            {
+              T first = AllItems.First(it => selected.Contains(it));
+              selected.Clear();
+              selected.Add(first);
+              foreach (T eligible in AllItems.Between(first, item))
+              {
+                selected.Add(eligible);
+              }
+            }
+            else
+            {
+              selected.Add(item);
+            }
           }
           else if (ControlDown)
           {

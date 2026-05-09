@@ -56,7 +56,7 @@ internal static class DevHarmony
 		foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
 		{
 			TryLoadDevTool<BenchmarkManager>(mod);
-			TryLoadDevTool<UnitTestManager>(mod);
+			TryLoadDevTool<TestFixtureManager>(mod);
 			TryLoadDevTool<SmokeTestManager>(mod);
 			TryLoadDevTool<TestPlanManager>(mod);
 		}
@@ -134,12 +134,16 @@ internal static class DevHarmony
 
 	private static void DrawDebugWindowButton(WidgetRow ___widgetRow, out float ___widgetRowFinalX)
 	{
-		if (___widgetRow.ButtonIcon(TexButton.OpenDebugActionsMenu, "DevTools"))
+		if (___widgetRow.ButtonIcon(TexButton.OpenStatsReport, "DevTools"))
 		{
-			if (ModDevTools.Count > 1)
-				OpenModMenu();
-			else
-				OpenToolMenu(ModDevTools.FirstOrDefault().Key);
+      if (ModDevTools.Count > 1)
+      {
+        OpenModMenu();
+      }
+      else
+      {
+        OpenToolMenu(ModDevTools.FirstOrDefault().Key);
+      }
 		}
 		___widgetRowFinalX = ___widgetRow.FinalX;
 	}

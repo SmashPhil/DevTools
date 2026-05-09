@@ -6,7 +6,7 @@ using Verse;
 namespace DevTools.Testing;
 
 [PublicAPI]
-public class UnitTestConfig : BaseTestConfig, ITestActions
+public class TestFixtureConfig : BaseTestConfig, ITestActions
 {
 	public bool stopOnFailure;
 	public bool retryOnFailure;
@@ -26,38 +26,31 @@ public class UnitTestConfig : BaseTestConfig, ITestActions
 		return stopOnFailure && testCase.Status == Status.Failed;
 	}
 
-	bool ITestActions.PreTest(ITestGroup _)
+	bool ITestActions.PreTest(ITestFixture _)
 	{
 		bool success = true;
 		if (!preTestActions.NullOrEmpty())
 		{
 			foreach (Action action in preTestActions)
 			{
-				using Test.Group preTestGroup = new(action.Method.Name);
 				action();
-				success &= !Test.CurrentGroup.Results.Exists(FailedResult);
-			}
+        success &= Test.Current.Status is not Status.Failed;
+      }
 		}
 		return success;
 	}
 
-	bool ITestActions.PostTest(ITestGroup _)
+	bool ITestActions.PostTest(ITestFixture _)
 	{
 		bool success = true;
 		if (!postTestActions.NullOrEmpty())
 		{
 			foreach (Action action in postTestActions)
 			{
-				using Test.Group postTestGroup = new(action.Method.Name);
 				action();
-				success &= !Test.CurrentGroup.Results.Exists(FailedResult);
-			}
+				success &= Test.Current.Status is not Status.Failed;
+      }
 		}
 		return success;
-	}
-
-	private static bool FailedResult(TestResult result)
-	{
-		return result.status == Status.Failed;
 	}
 }

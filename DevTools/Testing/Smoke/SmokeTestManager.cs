@@ -13,88 +13,92 @@ namespace DevTools.Testing;
 /// </summary>
 internal class SmokeTestManager : IDevToolWithMenu, ITestManager
 {
-	private static readonly string DefaultTestKey = typeof(DefaultSmokeTests).FullName;
+  private static readonly string DefaultTestKey = typeof(DefaultSmokeTests).FullName;
 
-	private readonly Dictionary<(string, TestType), SmokeTestGroup> smokeTests = [];
+  private readonly Dictionary<(string, TestType), SmokeTestGroup> smokeTests = [];
 
-	private SmokeTestConfig config;
+  private SmokeTestConfig config;
 
-	string IDevToolWithMenu.Name => "Smoke Test";
+  string IDevToolWithMenu.Name => "Smoke Test";
 
-	string ITestManager.ConfigName => "SmokeTestConfig";
+  string ITestManager.ConfigName => "SmokeTestConfig";
 
-	public SmokeTestConfig Config => config;
+  public SmokeTestConfig Config => config;
 
-	ITestConfig ITestManager.Config => config;
+  ITestConfig ITestManager.Config => config;
 
-	public IEnumerable<ITestGroup> TestGroups => smokeTests.Values;
+  public IEnumerable<ITestFixture> TestFixtures => smokeTests.Values;
 
-	bool IDevTool.Init(ModContentPack mod)
-	{
-		config = this.LoadConfig<SmokeTestConfig>(mod);
-		return config != null;
-	}
+  bool IDevTool.Init(ModContentPack mod)
+  {
+    config = this.LoadConfig<SmokeTestConfig>(mod);
+    if (config == null)
+      return false;
 
-	bool IDevTool.TryRegisterType(Type type)
-	{
-		bool anyAdded = false;
-		foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static |
-			BindingFlags.Instance))
-		{
-			if (method.TryGetAttribute<SmokeTestAttribute>() is not { } smokeTestAttr)
-				continue;
+    Test.Discover(this);
+    return true;
+  }
 
-			string key = type.FullName;
-			if (key == null)
-				return false;
+  bool IDevTool.TryRegisterType(Type type)
+  {
+    bool anyAdded = false;
+    foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static |
+      BindingFlags.Instance))
+    {
+      if (method.TryGetAttribute<SmokeTestAttribute>() is not { } smokeTestAttr)
+        continue;
 
-			bool added = !smokeTests.TryGetValue((key, smokeTestAttr.Type), out SmokeTestGroup testGroup);
-			testGroup ??= new SmokeTestGroup(type, smokeTestAttr.Type);
-			testGroup.MetaData.Load(type);
+      string key = type.FullName;
+      if (key == null)
+        return false;
 
-			if (testGroup.MetaData.Get<bool>(MetaDataName.Disabled))
-				continue;
+      bool added = !smokeTests.TryGetValue((key, smokeTestAttr.Type), out SmokeTestGroup testGroup);
+      testGroup ??= new SmokeTestGroup(type, smokeTestAttr.Type);
+      testGroup.MetaData.Load(type);
 
-			if (added)
-			{
-				smokeTests[(key, smokeTestAttr.Type)] = testGroup;
-			}
-			anyAdded |= testGroup.TryAddFunction(method);
-		}
-		return anyAdded;
-	}
+      if (testGroup.MetaData.Get<bool>(MetaDataName.Disabled))
+        continue;
 
-	void ITestManager.OnTestRunnerStart()
-	{
-	}
+      if (added)
+      {
+        smokeTests[(key, smokeTestAttr.Type)] = testGroup;
+      }
+      anyAdded |= testGroup.TryAddFunction(method);
+    }
+    return anyAdded;
+  }
 
-	void ITestManager.OnTestRunnerEnd()
-	{
-		if (DevHarmony.Args is { exitOnFinish: true })
-		{
-			bool anyFailed = TestGroups.Any(group => group.Status == Status.Failed);
-			DevLog.Write($"Test runner finished. Result: {(anyFailed ? "Failed" : "Passed")}");
-			Application.Quit(anyFailed ? 1 : 0);
-			return;
-		}
-		OpenMenu();
-	}
+  void ITestManager.OnTestRunnerStart()
+  {
+  }
 
-	internal ITestGroup GetDefaultGroup(TestType testType)
-	{
-		return smokeTests.TryGetValue((DefaultTestKey, testType));
-	}
+  void ITestManager.OnTestRunnerEnd()
+  {
+    if (DevHarmony.Args is { exitOnFinish: true })
+    {
+      bool anyFailed = TestFixtures.Any(group => group.Status == Status.Failed);
+      DevLog.Write($"Test runner finished. Result: {(anyFailed ? "Failed" : "Passed")}");
+      Application.Quit(anyFailed ? 1 : 0);
+      return;
+    }
+    OpenMenu();
+  }
 
-	public void RunAll()
-	{
-		new TestRunner(this).Run();
-	}
+  internal ITestFixture GetDefaultGroup(TestType testType)
+  {
+    return smokeTests.TryGetValue((DefaultTestKey, testType));
+  }
 
-	// If smoke test is launched without batch mode, the results need to be shown somewhere. This menu is otherwise
-	// inaccessible in-game as there is no reason to launch a 'smoke test' from main menu yet.
-	// TODO - Add def spawning as an option for smoke tests (ie. the default for menu-launched smoke tests)
-	public void OpenMenu()
-	{
-		Find.WindowStack.Add(new Dialog_TestExplorer(this, new Dialog_TestExplorer.TestExplorerEntryComparer()));
-	}
+  public void RunAll()
+  {
+    new TestRunner(this).Run();
+  }
+
+  // If smoke test is launched without batch mode, the results need to be shown somewhere. This menu is otherwise
+  // inaccessible in-game as there is no reason to launch a 'smoke test' from main menu yet.
+  // TODO - Add def spawning as an option for smoke tests (i.e. the default for menu-launched smoke tests)
+  public void OpenMenu()
+  {
+    Find.WindowStack.Add(new Dialog_TestExplorer(this));
+  }
 }

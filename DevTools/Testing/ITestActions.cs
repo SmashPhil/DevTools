@@ -19,7 +19,7 @@ public interface ITestActions
 	/// <remarks>
 	/// Exceptions thrown here are treated as failures by the runner.
 	/// </remarks>
-	bool PreTest(ITestGroup group);
+	bool PreTest(ITestFixture group);
 
 	/// <summary>
 	/// Called immediately after the test runner finishes executing a test group's tear down functions, regardless of outcome.
@@ -33,7 +33,7 @@ public interface ITestActions
 	/// <remarks>
 	/// Exceptions thrown here are treated as failures by the runner.
 	/// </remarks>
-	bool PostTest(ITestGroup group);
+	bool PostTest(ITestFixture group);
 
 	/// <summary>
 	/// Called after a test case completes (either a group or an individual function) to decide whether execution should stop.

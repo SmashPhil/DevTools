@@ -21,7 +21,7 @@ internal abstract class DevItem
   public enum DevItemType
   {
     Benchmarking,
-    UnitTesting,
+    Testing,
     StartupActions,
     Profiling,
   }

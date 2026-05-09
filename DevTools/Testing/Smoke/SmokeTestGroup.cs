@@ -1,37 +1,29 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
-using DevTools.Benchmarking;
-using UnityEngine;
 using Verse;
 
 namespace DevTools.Testing;
 
-internal class SmokeTestGroup : ITestGroup
+internal class SmokeTestGroup : ITestFixture
 {
-	private readonly List<SmokeTestFunction> tests = [];
-
-	private string failMessageInt;
-	private readonly Stopwatch groupTimer = new();
-
-	private readonly Dictionary<Type, object> instanceByType = [];
+	private readonly List<TestFunction> tests = [];
 
 	public SmokeTestGroup(Type type, TestType testType)
 	{
 		Type = type;
 		TestType = testType;
-	}
+    Args = [];
+  }
 
 	public string Name => TestType.ToString();
 
-	public int TestCount => tests.Count;
+	string ITestFixture.SaveFile => null;
 
-	string ITestGroup.SaveFile => null;
+  public object[] Args { get; set; }
 
-	public IEnumerable<ITestFunction> TestFunctions => tests;
+  public IEnumerable<ITestFunction> TestFunctions => tests;
 
 	public MetaDataContainer MetaData { get; } = new();
 
@@ -39,84 +31,30 @@ internal class SmokeTestGroup : ITestGroup
 
 	public Type Type { get; }
 
-	public Benchmark.Result Duration { get; private set; }
-
 	public Status Status { get; set; } = Status.NotRun;
 
-	public string FailLabel { get; private set; }
+  bool ITestFixture.OneTimeSetUp(object instance)
+  {
+    // TODO - prep map
+    return true;
+  }
 
-	public string FailMessage
+  bool ITestFixture.OneTimeTearDown(object instance)
+  {
+    // TODO - prep map, lear test area
+    return true;
+  }
+
+  bool ITestFixture.SetUp(object instance)
 	{
-		get { return failMessageInt; }
-		private set
-		{
-			failMessageInt = value;
-			FailLabel = FailMessage.FirstLine();
-		}
-	}
-
-	bool IDataRow<ExplorerColumn>.ShouldHide => MetaData.Get<bool>(MetaDataName.Disabled);
-
-	bool IDataRow<ExplorerColumn>.CanExpand => TestCount > 1;
-
-	float IDataRow<ExplorerColumn>.Height => ExplorerColumn.LineHeight;
-
-	bool IDataRow<ExplorerColumn>.Expanded { get; set; }
-
-	IEnumerable<IDataRow<ExplorerColumn>> IDataRow<ExplorerColumn>.NestedRows
-	{
-		get
-		{
-			foreach (SmokeTestFunction method in tests)
-			{
-				yield return method;
-			}
-		}
-	}
-
-	void IDataRow<ExplorerColumn>.Draw(Rect rect, ExplorerColumn column)
-	{
-		column.Draw(rect, this);
-	}
-
-	void ITestCase.Fail(string reason)
-	{
-		Status = Status.Failed;
-		FailMessage = reason;
-	}
-
-	void ITestCase.Reset()
-	{
-		Status = Status.NotRun;
-		foreach (SmokeTestFunction function in tests)
-		{
-			function.Reset();
-		}
-	}
-
-	bool ITestGroup.SetUp()
-	{
-		groupTimer.Restart();
-
-		// TODO - prep map
-
+    // TODO - spawn entity
 		return true;
 	}
 
-	bool ITestGroup.TearDown()
+	bool ITestFixture.TearDown(object instance)
 	{
-		groupTimer.Stop();
-		Duration = new Benchmark.Result(groupTimer, 1, Benchmark.Measurement.Milliseconds);
-
-		// TODO - prep map
-
-		return true;
-	}
-
-	void ITestCase.TestOutcomes(StatusCount statusCount)
-	{
-		foreach (ITestCase testCase in tests)
-			testCase.TestOutcomes(statusCount);
+    // TODO - despawn entity
+    return true;
 	}
 
 	public bool TryAddFunction(MethodInfo methodInfo)
@@ -127,37 +65,13 @@ internal class SmokeTestGroup : ITestGroup
 			return false;
 		}
 
-		if (!methodInfo.HasAllRequiredMods() || !methodInfo.HasAnyRequiredMods())
+		if (methodInfo.MissingRequiredMods())
 			return false;
 
-		object instance = null;
-		Type declaringType = methodInfo.DeclaringType;
-		if (declaringType != null)
-		{
-			// Static types are both abstract and sealed
-			if (declaringType.IsAbstract)
-			{
-				// Only static types should be getting added as a unit test method if the type
-				// is abstract, otherwise we wouldn't be able to invoke the method.
-				if (!declaringType.IsSealed)
-				{
-					Log.Error("Trying to instantiate abstract type for smoke testing.");
-					return false;
-				}
-			}
-			else
-			{
-				if (!instanceByType.TryGetValue(declaringType, out instance))
-				{
-					instance = Activator.CreateInstance(declaringType);
-					instanceByType[declaringType] = instance;
-				}
-			}
-		}
-
-		SmokeTestFunction method = new(instance, methodInfo);
+    TestFunction method = new(this, methodInfo, MethodType.Test);
 		method.MetaData.Load(methodInfo);
-		tests.Add(method);
+    method.Args = [];
+    tests.Add(method);
 		return true;
 	}
 
@@ -176,12 +90,5 @@ internal class SmokeTestGroup : ITestGroup
 			return false;
 		}
 		return true;
-	}
-
-	int IComparable<ITestGroup>.CompareTo(ITestGroup other)
-	{
-		if (other is null)
-			return -1;
-		return TestType.CompareTo(other.TestType);
 	}
 }

@@ -22,6 +22,9 @@ public class DataTable<C, R> where C : class, IDataColumn
   private readonly List<C> columns = [];
   private readonly List<R> rows = [];
 
+  private readonly Dictionary<R, List<R>> nestedRows = [];
+  private IComparer<R> comparer;
+
   private Vector2 scrollPos;
 
   public GameFont HeaderFont { get; set; } = GameFont.Small;
@@ -37,7 +40,9 @@ public class DataTable<C, R> where C : class, IDataColumn
 
   private float Height { get; set; } = -1;
 
-  public SelectionManager<R> Selector { get; private set; }
+  public SelectionManager<R> Selector { get; set; }
+
+  public IEnumerable<R> AllRows { get; private set; }
 
   public void RecacheHeight()
   {
@@ -62,26 +67,63 @@ public class DataTable<C, R> where C : class, IDataColumn
     }
   }
 
-  public void SetSelector(SelectionManager<R> selectionManager)
+  public void SetRows(IEnumerable<R> dataRows)
   {
-    Selector = selectionManager;
+    rows.Clear();
+    rows.AddRange(dataRows);
+    if (comparer != null)
+    {
+      Sort();
+    }
+    else
+    {
+      CacheFlattenedList();
+    }
   }
 
-  public void SetRows(IEnumerable<R> rows)
+  public void SetColumns(params C[] dataColumns)
   {
-    this.rows.Clear();
-    this.rows.AddRange(rows);
-  }
-
-  public void SetColumns(params C[] columns)
-  {
-    this.columns.Clear();
-    this.columns.AddRange(columns);
+    columns.Clear();
+    columns.AddRange(dataColumns);
   }
 
   public void AddColumn(C column)
   {
-    this.columns.Add(column);
+    columns.Add(column);
+  }
+
+  public void SetComparer(IComparer<R> rowComparer)
+  {
+    comparer = rowComparer;
+    Sort();
+  }
+
+  private void CacheFlattenedList()
+  {
+    List<R> sortedRows = [];
+    SortRecursive(rows, comparer, sortedRows);
+    AllRows = sortedRows;
+    return;
+
+    static void SortRecursive(IEnumerable<R> rows, [CanBeNull] IComparer<R> comparer, List<R> output)
+    {
+      IEnumerable<R> sortedRows = comparer != null ? rows.OrderBy(static group => group, comparer) : rows;
+      foreach (R row in sortedRows)
+      {
+        output.Add(row);
+        if (row.CanExpand && !row.NestedRows.EnumerableNullOrEmpty())
+        {
+          SortRecursive(row.NestedRows.Cast<R>(), comparer, output);
+        }
+      }
+    }
+  }
+
+  private void Sort()
+  {
+    rows.Sort(comparer);
+    nestedRows.Clear();
+    CacheFlattenedList();
   }
 
   public void DrawTable(Rect inRect)
@@ -123,17 +165,19 @@ public class DataTable<C, R> where C : class, IDataColumn
 
     // If click event hasn't been used by this point, clear selection
     if (Event.current.type == EventType.MouseUp)
+    {
       Selector?.Clear();
+    }
   }
 
   private void DrawRows(Rect viewRect, ref float curX, ref float curY,
-    IEnumerable<R> rows, IEnumerable<C> columns)
+    IEnumerable<R> drawRows, IEnumerable<C> drawColumns)
   {
     // ReSharper disable PossibleMultipleEnumeration
 
     const float ExpandBtnSize = 20;
 
-    foreach (R row in rows)
+    foreach (R row in drawRows)
     {
       if (row.ShouldHide)
         continue;
@@ -142,7 +186,7 @@ public class DataTable<C, R> where C : class, IDataColumn
       Rect rowRect = new(0, curY, viewRect.width, row.Height);
       float cellX = 0;
       float indent = CanExpandItems ? expandBtnRect.xMax : curX;
-      foreach (C column in columns)
+      foreach (C column in drawColumns)
       {
         using TextBlock alignmentBlock = new(column.Anchor);
         Rect cellRect = rowRect with { x = cellX, width = column.Width };
@@ -162,21 +206,33 @@ public class DataTable<C, R> where C : class, IDataColumn
         {
           row.Expanded = expanded;
           if (expanded)
+          {
             SoundDefOf.TabOpen.PlayOneShotOnCamera();
+          }
           else
+          {
             SoundDefOf.TabClose.PlayOneShotOnCamera();
+          }
           RecacheHeight();
         }
         if (expanded)
         {
           curX += Indent;
-          DrawRows(viewRect, ref curX, ref curY, row.NestedRows.Cast<R>(), columns);
+          if (!nestedRows.TryGetValue(row, out var cachedNestedRows))
+          {
+            cachedNestedRows = row.NestedRows.Cast<R>().ToList();
+            cachedNestedRows.Sort(comparer);
+            nestedRows[row] = cachedNestedRows;
+          }
+          DrawRows(viewRect, ref curX, ref curY, cachedNestedRows, drawColumns);
           curX -= Indent;
         }
       }
-      Selector?.HandleClicks(rowRect, row);
+      Selector?.MouseEventArea(rowRect, row);
       if (Selector != null && Selector.IsSelected(row))
+      {
         Widgets.DrawBoxSolid(rowRect, backgroundLightColor);
+      }
     }
   }
 

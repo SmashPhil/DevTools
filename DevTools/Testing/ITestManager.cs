@@ -22,7 +22,7 @@ public interface ITestManager
 	/// <summary>
 	/// All test groups (fixtures) eligible for execution from the test runner.
 	/// </summary>
-	IEnumerable<ITestGroup> TestGroups { get; }
+	IEnumerable<ITestFixture> TestFixtures { get; }
 
 	/// <summary>
 	/// Queue up all test groups for testing from a test runner.

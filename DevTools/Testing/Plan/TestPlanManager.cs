@@ -25,7 +25,7 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
 
 	ITestConfig ITestManager.Config => SelectedPlan?.config;
 
-	public IEnumerable<ITestGroup> TestGroups
+	public IEnumerable<ITestFixture> TestFixtures
 	{
 		get
 		{
@@ -42,9 +42,12 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
 	bool IDevTool.Init(ModContentPack mod)
 	{
 		testPlans = LoadTestPlans(mod);
-		testExplorer = new Dialog_TestExplorer(this);
-		return !testPlans.NullOrEmpty();
-	}
+    if (testPlans.NullOrEmpty())
+      return false;
+
+    Test.Discover(this);
+    return true;
+  }
 
 	bool IDevTool.TryRegisterType(Type type)
 	{
@@ -95,7 +98,7 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
 
 		if (DevHarmony.Args is { exitOnFinish: true })
 		{
-			bool anyFailed = TestGroups.Any(group => group.Status == Status.Failed);
+			bool anyFailed = TestFixtures.Any(group => group.Status == Status.Failed);
 			DevLog.Write($"Test runner finished. Result: {(anyFailed ? "Failed" : "Passed")}");
 			Application.Quit(anyFailed ? 1 : 0);
 			return;
@@ -119,7 +122,6 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
 	public void Run(TestPlan testPlan)
 	{
 		SelectedPlan = testPlan;
-		testExplorer.Refresh();
 		new TestRunner(this, TestFilter).Run();
 		LongEventHandler.ExecuteWhenFinished(delegate { CoroutineObject.Instance.StartCoroutine(OpenMenuRoutine()); });
 	}
@@ -135,7 +137,7 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
 		Find.WindowStack.Add(new FloatMenu(options));
 	}
 
-	private static IEnumerable<(ITestGroup, List<ITestFunction>)> TestFilter(ITestManager testManager)
+	private static IEnumerable<(ITestFixture, List<ITestFunction>)> TestFilter(ITestManager testManager)
 	{
 		if (testManager is not TestPlanManager testPlanManager)
 			throw new InvalidOperationException("Using TestPlan filter for non test plan runner.");
@@ -156,6 +158,7 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
 
 	public void OpenMenu()
 	{
-		Find.WindowStack.Add(testExplorer);
+    testExplorer ??= new Dialog_TestExplorer(this);
+    Find.WindowStack.Add(testExplorer);
 	}
 }

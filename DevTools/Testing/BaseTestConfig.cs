@@ -11,7 +11,7 @@ public abstract class BaseTestConfig : ITestConfig
 {
 	public uint? randSeed;
 	public WorldGenerationSettings world = new();
-	public MapGenerationSettings map = new();
+	public MapGenerationSettings map = MapGenerationSettings.Default;
 
 	public bool failOnWarnings = true;
 	public bool failOnErrors = true;

@@ -7,13 +7,15 @@ namespace DevTools.Benchmarking;
 
 internal class ResultRow : IDataRow<ResultColumn>
 {
-	public ResultRow(string name, Benchmark.Result result)
+	public ResultRow(string label, Benchmark.Result result)
 	{
-		Name = name;
+		Label = label;
 		Result = result;
 	}
 
-	private string Name { get; }
+	public string Label { get; }
+
+  string IDataRow<ResultColumn>.Tooltip => null;
 
 	private Benchmark.Result Result { get; }
 
@@ -34,7 +36,7 @@ internal class ResultRow : IDataRow<ResultColumn>
 	{
 		if (column.Type == ResultColumn.ColumnType.Name)
 		{
-			Widgets.Label(rect, Name);
+			Widgets.Label(rect, Label);
 			return;
 		}
 		switch (column.Stat)

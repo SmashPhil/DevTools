@@ -10,7 +10,6 @@ namespace DevTools.Testing;
 [StaticConstructorOnStartup]
 public class ExplorerColumn : IDataColumn
 {
-	private const float RotationRate = 2; // seconds per rotation
 	internal const float LineHeight = 30;
 
 	private static readonly Color InactiveColor = new(0.37f, 0.37f, 0.37f, 0.8f);
@@ -62,30 +61,30 @@ public class ExplorerColumn : IDataColumn
 		}
 	}
 
-	public void Draw(Rect rect, ITestCase testCase)
+	public void Draw(Rect rect, ITestGroup group)
 	{
 		rect.xMin += Padding;
 		rect.xMax -= Padding;
 		switch (ColumnType)
 		{
 			case Type.Tests:
-				DrawTests(rect, testCase);
+				DrawTests(rect, group);
 			break;
 			case Type.Duration:
-				DrawDuration(rect, testCase);
+				DrawDuration(rect, group);
 			break;
 			case Type.Traits:
-				DrawTrait(rect, testCase);
+				DrawTrait(rect, group);
 			break;
 			case Type.ErrorMessage:
-				DrawErrorMessage(rect, testCase);
+				DrawErrorMessage(rect, group);
 			break;
 			default:
 				throw new NotImplementedException(nameof(Type));
 		}
 	}
 
-	private static void DrawTests(Rect rect, ITestCase testCase)
+	private static void DrawTests(Rect rect, ITestGroup group)
 	{
 		const float ResultIconSize = 20;
 
@@ -101,31 +100,32 @@ public class ExplorerColumn : IDataColumn
 		// +5 to pad a bit between the label and result tick mark
 		labelRect.xMin += 5;
 
-		CheckboxDraw(testChkRect, testCase.Status, false);
-		Widgets.Label(labelRect, testCase.Name);
+		CheckboxDraw(testChkRect, group.Status, false);
+		Widgets.Label(labelRect, group.Label);
 
-		string description = testCase.MetaData.Get<string>(MetaDataName.Description);
-		if (!description.NullOrEmpty())
+		if (!group.Tooltip.NullOrEmpty())
 		{
-			TooltipHandler.TipRegion(rect, description);
+			TooltipHandler.TipRegion(rect, group.Tooltip);
 		}
 	}
 
-	private static void DrawDuration(Rect rect, ITestCase testCase)
+	private static void DrawDuration(Rect rect, ITestGroup group)
 	{
-		if (testCase.Status < Status.NotRun)
-			Widgets.Label(rect, TimeLabel(testCase.Duration.Mean));
+    if (group.Status < Status.NotRun)
+    {
+      Widgets.Label(rect, TimeLabel(group.Duration.Mean));
+    }
 	}
 
-	private static void DrawTrait(Rect rect, ITestCase testCase)
+	private static void DrawTrait(Rect rect, ITestGroup group)
 	{
 	}
 
-	private static void DrawErrorMessage(Rect rect, ITestCase testCase)
+	private static void DrawErrorMessage(Rect rect, ITestGroup group)
 	{
-		if (testCase is { Status: Status.Skipped or Status.Failed })
+		if (group is { Status: Status.Skipped or Status.Failed })
 		{
-			Widgets.Label(rect, testCase.FailLabel);
+			Widgets.Label(rect, group.FailLabel);
 		}
 	}
 
@@ -133,8 +133,10 @@ public class ExplorerColumn : IDataColumn
 	{
 		using TextBlock colorBlock = new(Color.white);
 
-		if (disabled)
-			GUI.color = InactiveColor;
+    if (disabled)
+    {
+      GUI.color = InactiveColor;
+    }
 
 		Texture2D image = status switch
 		{
@@ -146,12 +148,7 @@ public class ExplorerColumn : IDataColumn
 			Status.NotRun   => CheckJobCanceled,
 			_               => throw new NotImplementedException(),
 		};
-		float angle = 0;
-		if (status is Status.Pending)
-		{
-			angle = Mathf.Lerp(0, 1, Time.realtimeSinceStartup % RotationRate / RotationRate) * 360;
-		}
-		Widgets.DrawTextureRotated(rect, image, angle);
+		GUI.DrawTexture(rect, image);
 		if (!disabled)
 		{
 			TooltipHandler.TipRegion(rect, StatusLabel(status));

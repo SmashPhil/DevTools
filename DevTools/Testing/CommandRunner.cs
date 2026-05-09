@@ -84,7 +84,7 @@ internal static class CommandRunner
         break;
       case TestCommand.Unit:
         {
-          UnitTestManager testManager = DevHarmony.GetDevTool<UnitTestManager>(mod);
+          TestFixtureManager testManager = DevHarmony.GetDevTool<TestFixtureManager>(mod);
           TestRunner testRunner =
             expressionTree != null ? testManager.GetRunnerWith(expressionTree) : new TestRunner(testManager);
           testRunner.AddTestActions(testManager.Config);
@@ -115,7 +115,7 @@ internal static class CommandRunner
   {
     public string packageId;
 
-    // UnitTesting
+    // Testing
     public string filterStr;
     public string testPlan;
 

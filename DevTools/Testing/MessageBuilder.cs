@@ -17,7 +17,7 @@ internal class MessageBuilder
     return GetMessage($"{failureMessage}{Environment.NewLine}{Expected} {expected}");
   }
 
-  public static string GetEqualityMessage(object actual, object expected, bool expectEqual)
+  public static string GetEqualityMessage(object expected, object actual, bool expectEqual)
   {
     string failureMessage = $"Values are {(expectEqual ? "not " : "")}equal.";
     return GetMessage(failureMessage, $"{actual} {(expectEqual ? "==" : "!=")} {expected}");
