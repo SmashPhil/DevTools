@@ -12,7 +12,7 @@ public enum Status
 	Skipped,
 	Passed,
 	Pending,
-	NotRun,
+	NotRun
 }
 
 internal static class StatusComparer

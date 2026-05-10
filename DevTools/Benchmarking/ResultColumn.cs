@@ -1,10 +1,8 @@
 ﻿using System;
-using JetBrains.Annotations;
 using UnityEngine;
 
 namespace DevTools.Benchmarking;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 internal class ResultColumn : IDataColumn
 {
 	public ResultColumn(ColumnType type, Stat stat, float width, float padding = 5)

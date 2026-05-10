@@ -9,7 +9,7 @@ internal class TestCaseComparer : IComparer<ITestCase>
 
 	int IComparer<ITestCase>.Compare(ITestCase lhs, ITestCase rhs)
 	{
-		// There should never be any null Method entries. UnitTestManager was not initialized
+		// There should never be any null Method entries. TestFixtureManager was not initialized
 		// properly and testing may throw as well.
 		if (lhs is null)
 			return 1;

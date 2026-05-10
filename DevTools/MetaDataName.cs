@@ -1,22 +1,21 @@
-﻿using Verse;
-
-namespace DevTools;
+﻿namespace DevTools;
 
 internal static class MetaDataName
 {
   // Benchmarking
-  public static readonly int SampleSize = "SampleSize".GetHashCode();
-  public static readonly int Measurement = "Measurement".GetHashCode();
-  public static readonly int Table = "Table".GetHashCode();
-  public static readonly int Graph = "Graph".GetHashCode();
+  public const string Measurement = "Measurement";
+  public const string Table = "Table";
+  public const string Graph = "Graph";
 
-  // Unit Testing
-  public static readonly int LoadIfAllModsActive = "LoadIfAll".GetHashCode();
-  public static readonly int LoadIfAnyModsActive = "LoadIfAny".GetHashCode();
-  public static readonly int Disabled = "Disabled".GetHashCode();
-  public static readonly int Category = "Category".GetHashCode();
-  public static readonly int Property = "Property".GetHashCode();
-  public static readonly int Description = "Description".GetHashCode();
-  public static readonly int ExecutionPriority = "ExecutionPriority".GetHashCode();
-  public static readonly int LoadSave = "LoadSave".GetHashCode();
+  // Testing
+  public const string LoadIfAllModsActive = "LoadIfAll";
+  public const string LoadIfAnyModsActive = "LoadIfAny";
+  public const string Disabled = "Disabled";
+  public const string HideInUI = "HideInUI";
+  public const string Category = "Category";
+  public const string Property = "Property";
+  public const string Description = "Description";
+  public const string ExecutionPriority = "ExecutionPriority";
+  public const string LoadSave = "LoadSave";
+  public const string RetryTest = "RetryTest";
 }

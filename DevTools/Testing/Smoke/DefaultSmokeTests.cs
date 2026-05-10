@@ -20,26 +20,17 @@ internal class DefaultSmokeTests
 
 		CacheStartupLogs();
 
-		SmokeTestConfig config = testManager.Config;
-		logWatcher = new LogWatcher(config, testCase: testManager.GetDefaultGroup(TestType.PostGameExit));
+		ITestConfig config = testManager.Config;
+		logWatcher = new LogWatcher(config);
 
-		ITestGroup mainMenuGroup = testManager.GetDefaultGroup(TestType.MainMenu);
 		foreach (LogWatcher.LogEntry logEntry in LogMessagesOnStartup[LogMessageType.Warning])
-		{
-			if (!LogWatcher.LogAllowed(config, LogType.Warning, logEntry, out string failReason))
-			{
-				mainMenuGroup.Fail(failReason);
-				return;
-			}
+    {
+      LogWatcher.TestLogEntry(config, LogType.Warning, logEntry);
 		}
 		foreach (LogWatcher.LogEntry logEntry in LogMessagesOnStartup[LogMessageType.Error])
 		{
-			if (!LogWatcher.LogAllowed(config, LogType.Error, logEntry, out string failReason))
-			{
-				mainMenuGroup.Fail(failReason);
-				return;
-			}
-		}
+      LogWatcher.TestLogEntry(config, LogType.Error, logEntry);
+    }
 	}
 
 	[SmokeTest(TestType.PostGameExit), ExecutionPriority(Priority.Last)]

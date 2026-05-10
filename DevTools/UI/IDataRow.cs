@@ -5,6 +5,10 @@ namespace DevTools;
 
 public interface IDataRow<in C> : ISelectable where C : class, IDataColumn
 {
+  string Label { get; }
+
+  string Tooltip { get; }
+
   bool ShouldHide { get; }
 
   bool CanExpand { get; }

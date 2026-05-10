@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Globalization;
 using DevTools.Testing;
-using HarmonyLib;
 using JetBrains.Annotations;
 
 namespace DevTools;
@@ -34,13 +33,13 @@ public static class DevLog
 	public static void EnableLogger([NotNull] Logger.Config config)
 	{
 		logger = new Logger(config);
-		Write(
-			$"{DateTime.Now.ToString("g", DateTimeFormatInfo.CurrentInfo)}{Environment.NewLine}{Environment.NewLine}");
+		Write($"{DateTime.Now.ToString("g", DateTimeFormatInfo.CurrentInfo)}");
 		WriteLine();
 	}
 
 	public static void DisableLogger()
-	{
+  {
+    logger?.Flush();
 		logger?.Dispose();
 		logger = null;
 	}

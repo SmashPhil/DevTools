@@ -2,20 +2,15 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using JetBrains.Annotations;
 using UnityEngine.Assertions.Comparers;
 using Verse;
 
 namespace DevTools.Testing;
 
+[PublicAPI]
 public static class Expect
 {
-  internal const string FailedLabel = "[Failed]";
-  private const string CanceledLabel = "[Canceled]";
-  private const string SkippedLabel = "[Skipped]";
-  private const string PassedLabel = "[Passed]";
-  private const string PendingLabel = "[Pending]";
-  private const string NotRunLabel = "[NotRun]";
-
   public static void That(Func<bool> validator, string message = null)
   {
     Signal(validator(), nameof(That), message);
@@ -23,12 +18,12 @@ public static class Expect
 
   public static void IsTrue(bool condition, string message = null)
   {
-    Signal(condition, nameof(IsTrue), message, MessageBuilder.BooleanFailureMessage(condition));
+    Signal(condition, nameof(IsTrue), message, MessageBuilder.BooleanFailureMessage(true));
   }
 
   public static void IsFalse(bool condition, string message = null)
   {
-    Signal(!condition, nameof(IsFalse), message, MessageBuilder.BooleanFailureMessage(condition));
+    Signal(!condition, nameof(IsFalse), message, MessageBuilder.BooleanFailureMessage(false));
   }
 
   public static void IsEmpty<T>(IEnumerable<T> collection, string message = null)
@@ -72,12 +67,14 @@ public static class Expect
 
   public static void ReferencesAreEqual<T>(T expected, T actual, string message = null) where T : class
   {
-    Signal(ReferenceEquals(expected, actual), nameof(ReferencesAreEqual), message);
+    Signal(ReferenceEquals(expected, actual), nameof(ReferencesAreEqual), message,
+      MessageBuilder.GetEqualityMessage(expected, actual, expectEqual: true));
   }
 
   public static void ReferencesAreNotEqual<T>(T expected, T actual, string message = null) where T : class
   {
-    Signal(!ReferenceEquals(expected, actual), nameof(ReferencesAreNotEqual), message);
+    Signal(!ReferenceEquals(expected, actual), nameof(ReferencesAreNotEqual), message,
+      MessageBuilder.GetEqualityMessage(expected, actual, expectEqual: false));
   }
 
   public static void AreEqual<T>(T expected, T actual, string message = null)
@@ -145,14 +142,14 @@ public static class Expect
     return exception;
   }
 
-  private static void Signal(bool result, string label, string message,
+  private static void Signal(bool result, string context, string label,
     string failureMessage = null)
   {
-    SendSignal(result ? Status.Passed : Status.Failed, label, message, failureMessage,
+    SendSignal(result ? Status.Passed : Status.Failed, context, label, failureMessage,
       skipFrames: 3);
   }
 
-  internal static void SendSignal(Status status, string label, string message,
+  internal static void SendSignal(Status status, string context, string message,
     string failureMessage = null, int skipFrames = 1)
   {
     if (!TestRunner.Active)
@@ -162,35 +159,19 @@ public static class Expect
       return;
     }
 
-    if (status == Status.Failed)
-      DevLog.Write(StatusMessage(status, label, message, failureMessage));
-    else
-      DevLog.WriteVerbose(StatusMessage(status, label, message, failureMessage));
-
-    StackFrame stackFrame = null;
-    if (status is Status.Skipped or Status.Canceled or Status.Failed)
+    ITestGroup current = Test.Current;
+    current.Status = status;
+    if (status is Status.Failed or Status.Canceled or Status.Skipped)
     {
+      current.TestContext ??= context;
+      current.FailLabel ??= message;
+      current.FailMessage ??= failureMessage;
       StackTrace stackTrace = new(skipFrames, true);
-      stackFrame = stackTrace.GetFrame(0);
-      if (status is Status.Failed && Debugger.IsAttached && UnitTestManager.BreakOnTestFailure)
+      if (status is Status.Failed && Debugger.IsAttached && TestFixtureManager.BreakOnTestFailure)
+      {
         Debugger.Break();
-      DevLog.Write(stackTrace.ToString());
+      }
+      current.StackTrace ??= stackTrace;
     }
-    Test.CurrentGroup.Results.Add(new TestResult(status, label, message, stackFrame));
-  }
-
-  internal static string StatusMessage(Status status, string label, string message,
-    string failureMessage = "")
-  {
-    return (status switch
-    {
-      Status.Failed   => $"{FailedLabel}     {label}    {message}    {failureMessage}",
-      Status.Canceled => $"{CanceledLabel}   {label}    {message}    {failureMessage}",
-      Status.Skipped  => $"{SkippedLabel}    {label}    {message}    {failureMessage}",
-      Status.Passed   => $"{PassedLabel}     {label}    {message}    {failureMessage}",
-      Status.Pending  => $"{PendingLabel}    {label}    {message}    {failureMessage}",
-      Status.NotRun   => $"{NotRunLabel}     {label}    {message}    {failureMessage}",
-      _               => throw new NotImplementedException(nameof(Status)),
-    }).TrimEnd();
   }
 }
