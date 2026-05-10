@@ -91,7 +91,7 @@ public class ExpressionTree
       Result groupCaseResult = expression.CompareCase(group, comparison, value);
       Result functionCaseResult = expression.CompareCase(function, comparison, value);
 
-      Result groupResult = expression.CompareGroup(group, comparison, value);
+      Result groupResult = expression.CompareFixture(group, comparison, value);
       Result funcResult = expression.CompareFunction(function, comparison, value);
 
       Result result = Combine(Combine(Combine(groupCaseResult, functionCaseResult), groupResult),

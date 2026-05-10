@@ -20,6 +20,8 @@ internal class TestFunction : ITestFunction
 
   public MethodType MethodType { get; }
 
+  public ITestModule Module => Fixture.Module;
+
   public Type Type => MethodInfo.DeclaringType;
 
   public object[] Args { get; set; }

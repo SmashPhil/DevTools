@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using RimWorld;
@@ -221,7 +222,10 @@ public class DataTable<C, R> where C : class, IDataColumn
           if (!nestedRows.TryGetValue(row, out var cachedNestedRows))
           {
             cachedNestedRows = row.NestedRows.Cast<R>().ToList();
-            cachedNestedRows.Sort(comparer);
+            if (comparer != null)
+            {
+              cachedNestedRows.Sort(comparer);
+            }
             nestedRows[row] = cachedNestedRows;
           }
           DrawRows(viewRect, ref curX, ref curY, cachedNestedRows, drawColumns);

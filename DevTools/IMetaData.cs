@@ -18,7 +18,7 @@ public interface IMetaData
   /// <remarks>
   /// Consumers can use this key to group, order, or look up metadata values.
   /// </remarks>
-  int Key { get; }
+  string Key { get; }
 
   /// <summary>
   /// Gets the metadata value supplied by the implementing attribute.

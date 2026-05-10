@@ -171,7 +171,7 @@ public sealed class TestRunner
     // such as premature skips / failures.
     // ReSharper disable PossibleMultipleEnumeration
     var testsToRun = filter(testManager);
-    SetAllPending(testsToRun);
+    ResetAll(testsToRun);
     foreach ((ITestFixture fixture, List<ITestFunction> functions) in testsToRun)
     {
       if (StopRequested || ShouldStop(fixture))
@@ -186,7 +186,6 @@ public sealed class TestRunner
 
       using (new Test.Scope(fixture))
       {
-        Test.Current.Status = Status.Pending;
         // Scene change for test type
         if (currentTestType != fixture.TestType)
         {
@@ -216,9 +215,8 @@ public sealed class TestRunner
             Test.Fail($"Failed pre-test actions for {fixture.Name}!");
             continue;
           }
-          object instance = fixture.Args.Length == 0 ?
-            Activator.CreateInstance(fixture.Type) :
-            Activator.CreateInstance(fixture.Type, fixture.Args);
+
+          object instance = fixture.CreateInstance();
           if (!fixture.OneTimeSetUp(instance))
           {
             Test.Fail($"Failed to set up {fixture.Name}!");
@@ -231,11 +229,16 @@ public sealed class TestRunner
               break;
 
             Assert.IsFalse(function.MissingRequiredMods());
-            using Test.Scope fns = new(function);
-            Test.Current.Status = Status.Pending;
-            int attempts = config.RetryAttempts + 1;
+            int testRetries = function.MetaData.Get<ushort>(MetaDataName.RetryTest);
+            int maxRetries = Mathf.Max(testRetries, config.RetryAttempts);
+            int attempts = 0;
             do
             {
+              using Test.Scope fns = new(function);
+              if (++attempts > 1)
+              {
+                DevLog.WriteVerbose("Retrying...");
+              }
               try
               {
                 if (!fixture.SetUp(instance))
@@ -260,15 +263,7 @@ public sealed class TestRunner
                   Test.Fail($"Failed to tear down {fixture.Name}!");
                 }
               }
-
-              if (function.Status != Status.Failed)
-                break;
-
-              if (--attempts > 0)
-              {
-                DevLog.WriteVerbose("Retrying...");
-              }
-            } while (attempts > 0);
+            } while (attempts <= maxRetries && function.Status is Status.Failed);
 
             report.Add(function);
 
@@ -323,14 +318,14 @@ public sealed class TestRunner
     testManager.OnTestRunnerEnd();
     yield break;
 
-    static void SetAllPending(IEnumerable<(ITestFixture, List<ITestFunction>)> tests)
+    static void ResetAll(IEnumerable<(ITestFixture, List<ITestFunction>)> tests)
     {
       foreach ((ITestFixture fixture, List<ITestFunction> functions) in tests)
       {
-        Test.GetEntry(fixture).Status = Status.Pending;
+        Test.GetEntry(fixture).Reset();
         foreach (ITestFunction function in functions)
         {
-          function.Status = Status.Pending;
+          Test.GetEntry(function).Reset();
         }
       }
     }

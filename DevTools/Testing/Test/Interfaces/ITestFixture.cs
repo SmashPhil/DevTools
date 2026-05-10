@@ -12,6 +12,11 @@ namespace DevTools.Testing;
 public interface ITestFixture : ITestCase
 {
   /// <summary>
+  /// Class type to instantiate for this fixture
+  /// </summary>
+  Type Type { get; }
+
+  /// <summary>
   /// Scene setup for executing tests in this group
   /// </summary>
   TestType TestType { get; }
@@ -25,6 +30,11 @@ public interface ITestFixture : ITestCase
   /// All test functions in this group
   /// </summary>
   IEnumerable<ITestFunction> TestFunctions { get; }
+
+  /// <summary>
+  /// Constructs an instance of the type for running this fixture's test functions on.
+  /// </summary>
+  object CreateInstance();
 
   /// <summary>
   /// Called once before any test function in this group is executed.

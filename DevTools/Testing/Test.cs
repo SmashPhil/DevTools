@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Reflection;
 using System.Text;
 using System.Threading;
 using DevTools.Benchmarking;
@@ -251,6 +250,7 @@ public static class Test
         dataStack.Push(CurrentGroup);
       }
       CurrentGroup = entry;
+      ((ITestGroup)CurrentGroup).Status = Status.Pending;
       CurrentGroup.Start();
     }
 
@@ -265,30 +265,30 @@ public static class Test
 
   private sealed class TestCache
   {
-    private readonly Dictionary<Assembly, TestData> assemblyData = [];
+    private readonly Dictionary<ITestModule, TestData> moduleData = [];
     private readonly Dictionary<string, TestData> testGroups = [];
-    private readonly Dictionary<Assembly, Dictionary<ITestCase, TestData>> tests = [];
+    private readonly Dictionary<ITestModule, Dictionary<ITestCase, TestData>> tests = [];
 
-    public IEnumerable<ITestGroup> AssemblyGroups => assemblyData.Values;
+    public IEnumerable<ITestGroup> AssemblyGroups => moduleData.Values;
 
     private TestData GetModuleGroup(ITestCase testCase)
     {
-      var module = testCase.Type.Assembly;
-      if (!tests.TryGetValue(module, out var moduleCache))
+      ITestModule module = testCase.Module;
+      if (!tests.TryGetValue(module, out var moduleDict))
       {
-        var moduleGroup = new TestData(module.GetName().Name);
-        moduleCache = [];
-        tests[module] = moduleCache;
-        assemblyData[module] = moduleGroup;
+        TestData moduleGroup = new(module.Name);
+        moduleDict = [];
+        tests[module] = moduleDict;
+        moduleData[module] = moduleGroup;
       }
-      return assemblyData.TryGetValue(module);
+      return moduleData.TryGetValue(module);
     }
 
     public TestData GetOrAdd(ITestCase testCase)
     {
       // NOTE: GetModuleGroup ensures test dict is cached, could be refactored for scope.
       TestData moduleGroup = GetModuleGroup(testCase);
-      var assemblyTests = tests[testCase.Type.Assembly];
+      var assemblyTests = tests[testCase.Module];
       if (!assemblyTests.TryGetValue(testCase, out TestData testGroup))
       {
         testGroup = new TestData(testCase);
@@ -315,17 +315,15 @@ public static class Test
 
     public TestData Get(ITestCase testCase)
     {
-      var module = testCase.Type.Assembly;
-      if (!tests.TryGetValue(module, out var moduleCache))
-      {
+      if (!tests.TryGetValue(testCase.Module, out var moduleCache))
         return null;
-      }
+
       return moduleCache.TryGetValue(testCase);
     }
 
     public void ResetStatuses()
     {
-      foreach (TestData group in assemblyData.Values)
+      foreach (TestData group in moduleData.Values)
       {
         group.Reset();
       }
@@ -352,7 +350,8 @@ public static class Test
       Label = testCase.Name;
       TestCase = testCase;
       Tooltip = TestCase.MetaData.Get<string>(MetaDataName.Description);
-      ShouldHide = TestCase.MetaData.Get<bool>(MetaDataName.Disabled);
+      ShouldHide = TestCase.MetaData.Get<bool>(MetaDataName.Disabled) ||
+                   TestCase.MetaData.Get<bool>(MetaDataName.HideInUI);
     }
 
     public ITestCase TestCase { get; }
@@ -376,7 +375,7 @@ public static class Test
 
     public bool ShouldHide { get; }
 
-    public bool CanExpand => children.Count > 0 || children.Exists(static child => child.CanExpand);
+    public bool CanExpand => children.Exists(static child => child is { ShouldHide: false });
 
     bool IDataRow<ExplorerColumn>.Expanded { get; set; }
 

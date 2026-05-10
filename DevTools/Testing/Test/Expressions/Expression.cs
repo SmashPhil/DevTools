@@ -7,12 +7,12 @@ public abstract class Expression
     return Result.Undefined;
   }
 
-  public virtual Result CompareGroup(ITestFixture testGroup, Comparison comparison, string value)
+  public virtual Result CompareFixture(ITestFixture fixture, Comparison comparison, string value)
   {
     return Result.Undefined;
   }
 
-  public virtual Result CompareFunction(ITestFunction testFunction, Comparison comparison,
+  public virtual Result CompareFunction(ITestFunction function, Comparison comparison,
     string value)
   {
     return Result.Undefined;

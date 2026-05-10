@@ -13,25 +13,32 @@ namespace DevTools.Testing;
 /// </summary>
 internal class SmokeTestManager : IDevToolWithMenu, ITestManager
 {
-  private static readonly string DefaultTestKey = typeof(DefaultSmokeTests).FullName;
+  private readonly Dictionary<Assembly, ITestModule> modules = [];
+  private readonly Dictionary<(string, TestType), SmokeTestFixture> smokeTests = [];
 
-  private readonly Dictionary<(string, TestType), SmokeTestGroup> smokeTests = [];
-
-  private SmokeTestConfig config;
+  private TestConfig config;
 
   string IDevToolWithMenu.Name => "Smoke Test";
 
   string ITestManager.ConfigName => "SmokeTestConfig";
 
-  public SmokeTestConfig Config => config;
-
-  ITestConfig ITestManager.Config => config;
+  public ITestConfig Config => config;
 
   public IEnumerable<ITestFixture> TestFixtures => smokeTests.Values;
 
+  private ITestModule GetModule(Type type)
+  {
+    if (!modules.TryGetValue(type.Assembly, out ITestModule module))
+    {
+      module = new AssemblyModule(type.Assembly);
+      modules.Add(type.Assembly, module);
+    }
+    return module;
+  }
+
   bool IDevTool.Init(ModContentPack mod)
   {
-    config = this.LoadConfig<SmokeTestConfig>(mod);
+    config = this.LoadConfig<TestConfig>(mod);
     if (config == null)
       return false;
 
@@ -42,6 +49,7 @@ internal class SmokeTestManager : IDevToolWithMenu, ITestManager
   bool IDevTool.TryRegisterType(Type type)
   {
     bool anyAdded = false;
+
     foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static |
       BindingFlags.Instance))
     {
@@ -52,8 +60,8 @@ internal class SmokeTestManager : IDevToolWithMenu, ITestManager
       if (key == null)
         return false;
 
-      bool added = !smokeTests.TryGetValue((key, smokeTestAttr.Type), out SmokeTestGroup testGroup);
-      testGroup ??= new SmokeTestGroup(type, smokeTestAttr.Type);
+      bool added = !smokeTests.TryGetValue((key, smokeTestAttr.Type), out SmokeTestFixture testGroup);
+      testGroup ??= new SmokeTestFixture(GetModule(type), type, smokeTestAttr.Type);
       testGroup.MetaData.Load(type);
 
       if (testGroup.MetaData.Get<bool>(MetaDataName.Disabled))
@@ -82,11 +90,6 @@ internal class SmokeTestManager : IDevToolWithMenu, ITestManager
       return;
     }
     OpenMenu();
-  }
-
-  internal ITestFixture GetDefaultGroup(TestType testType)
-  {
-    return smokeTests.TryGetValue((DefaultTestKey, testType));
   }
 
   public void RunAll()

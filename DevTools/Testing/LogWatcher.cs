@@ -75,10 +75,12 @@ internal class LogWatcher : IDisposable
     switch (logType)
     {
       case LogType.Error or LogType.Assert or LogType.Exception:
-        Test.Fail("Logged error not whitelisted for tests.", $"{logEntry.message}\"{Environment.NewLine}{logEntry.stackTrace}");
+        Test.Fail("Logged error not whitelisted for tests.",
+          failureMessage: $"\"{logEntry.message}\"{Environment.NewLine}{logEntry.stackTrace}");
         break;
       case LogType.Warning:
-        Test.Fail("Logged warning not whitelisted for tests.", $"{logEntry.message}\"{Environment.NewLine}{logEntry.stackTrace}");
+        Test.Fail("Logged warning not whitelisted for tests.",
+          failureMessage: $"\"{logEntry.message}\"{Environment.NewLine}{logEntry.stackTrace}");
         break;
     }
   }

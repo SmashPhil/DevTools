@@ -6,7 +6,7 @@ using System.Reflection;
 namespace DevTools.Testing;
 
 [DebuggerDisplay("Name = {Name}")]
-internal class TestFixtureGroup : ITestFixture
+internal class TestFixture : ITestFixture
 {
   private readonly List<ITestFunction> setUps = [];
   private readonly List<ITestFunction> tearDowns = [];
@@ -14,10 +14,12 @@ internal class TestFixtureGroup : ITestFixture
   private readonly List<ITestFunction> oneTimeTearDowns = [];
   private readonly List<ITestFunction> tests = [];
 
-  public TestFixtureGroup(Type type, TestType testType)
+  public TestFixture(ITestModule module, Type type, TestType testType)
   {
+    Module = module;
     TestType = testType;
     Type = type;
+    Name = Type.Name;
   }
 
   string ITestFixture.SaveFile => MetaData.Get<string>(MetaDataName.LoadSave);
@@ -30,11 +32,13 @@ internal class TestFixtureGroup : ITestFixture
 
   public Type Type { get; }
 
-  public object[] Args { get; private set; }
+  public ITestModule Module { get; }
+
+  public object[] Args { get; protected internal set; }
 
   object[] ITestCase.Args { get => Args; set => Args = value; }
 
-  public string Name => Type.Name;
+  public virtual string Name { get; }
 
   public Status Status { get; set; } = Status.NotRun;
 
@@ -58,7 +62,12 @@ internal class TestFixtureGroup : ITestFixture
     return ExecuteAll(instance, tearDowns);
   }
 
-  private bool ExecuteAll(object instance, List<ITestFunction> functions)
+  public virtual object CreateInstance()
+  {
+    return this.CreateTestClass();
+  }
+
+  private static bool ExecuteAll(object instance, List<ITestFunction> functions)
   {
     bool success = true;
     foreach (ITestFunction function in functions)

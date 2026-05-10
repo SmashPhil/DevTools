@@ -4,7 +4,7 @@ namespace DevTools.Testing;
 
 public class TestTypeExpression : Expression
 {
-  public override Result CompareGroup(ITestFixture group, Comparison comparison, string value)
+  public override Result CompareFixture(ITestFixture group, Comparison comparison, string value)
   {
     bool result = comparison switch
     {

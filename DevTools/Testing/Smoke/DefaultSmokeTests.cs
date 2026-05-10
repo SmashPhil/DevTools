@@ -20,7 +20,7 @@ internal class DefaultSmokeTests
 
 		CacheStartupLogs();
 
-		SmokeTestConfig config = testManager.Config;
+		ITestConfig config = testManager.Config;
 		logWatcher = new LogWatcher(config);
 
 		foreach (LogWatcher.LogEntry logEntry in LogMessagesOnStartup[LogMessageType.Warning])

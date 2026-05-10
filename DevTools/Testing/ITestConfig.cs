@@ -15,10 +15,10 @@ public interface ITestConfig
 	/// </returns>
 	bool StopOnFailure { get; }
 
-	/// <summary>
-	/// Number of retry attempts the runner can make after a test case fails.
-	/// </summary>
-	int RetryAttempts { get; }
+  /// <summary>
+  /// Number of retry attempts the runner can make after a test case fails.
+  /// </summary>
+  ushort RetryAttempts { get; }
 
 	/// <summary>
 	/// <see cref="Logger"/> configurations for settings related to <see cref="DevLog"/>

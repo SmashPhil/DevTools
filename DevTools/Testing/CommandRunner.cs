@@ -9,18 +9,26 @@ internal static class CommandRunner
   public static Result ExecuteCommandLineArgs(ModContentPack mod)
   {
     const string PackageIdArg = "--pid";
-
+    
     const string RunTestsArg = "--test";
-    const string FilterArg = "--where";
+    const string FilterArg = "--filter";
+    const string WhereArg = "--where";
 
     const string RunPlanArg = "--test-plan";
-
     const string SmokeTestArg = "--smoke-test";
+    const string ConfigArg = "--config";
+
+    const string RunTestsShort = "-t";
+    const string FilterShort = "-f";
+    const string RunPlanShort = "-p";
+    const string SmokeTestShort = "-s";
+    const string ConfigShort = "-c";
 
     const string BatchMode = "-batchmode";
     const string NoGraphics = "-nographics";
     // Temporary solution since headless doesn't currently function with RimWorld
-    const string ExitAtEnd = "-e";
+    const string ExitAtEndArg = "--exit";
+    const string ExitAtEndShort = "-e";
 
     TestCommand testToRun = TestCommand.None;
     string[] args = Environment.GetCommandLineArgs();
@@ -37,28 +45,31 @@ internal static class CommandRunner
           if (i + 1 < args.Length)
             result.packageId = args[++i];
           break;
-        case RunTestsArg:
+        case RunTestsArg or RunTestsShort:
           testToRun = TestCommand.Unit;
           break;
-        case SmokeTestArg:
+        case SmokeTestArg or SmokeTestShort:
           testToRun = TestCommand.Smoke;
           break;
-        case RunPlanArg:
+        case RunPlanArg or RunPlanShort:
           testToRun = TestCommand.Plan;
           if (i + 1 < args.Length)
           {
             result.testPlan = args[++i];
           }
           break;
-        case FilterArg:
+        case ConfigArg or ConfigShort:
+          result.config = args[++i];
+          break;
+        case FilterArg or WhereArg or FilterShort:
           if (i + 1 < args.Length)
             result.filterStr = args[++i];
           break;
-        case BatchMode:
-          result.headless = true;
+        case ExitAtEndArg or ExitAtEndShort:
           result.exitOnFinish = true;
           break;
-        case ExitAtEnd:
+        case BatchMode:
+          result.headless = true;
           result.exitOnFinish = true;
           break;
         case NoGraphics:
@@ -118,6 +129,7 @@ internal static class CommandRunner
     // Testing
     public string filterStr;
     public string testPlan;
+    public string config;
 
     public bool headless;
     public bool exitOnFinish;

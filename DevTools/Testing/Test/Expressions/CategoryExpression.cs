@@ -5,16 +5,11 @@ namespace DevTools.Testing;
 
 public class CategoryExpression : Expression
 {
-  private readonly int metaDataKey;
-
-  public CategoryExpression(int metaDataKey)
-  {
-    this.metaDataKey = metaDataKey;
-  }
+  private readonly string metaDataKey;
 
   public CategoryExpression(string key)
   {
-    this.metaDataKey = key.GetHashCode();
+    metaDataKey = key;
   }
 
   public override Result CompareCase(ITestCase testCase, Comparison comparison, string value)

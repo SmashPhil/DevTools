@@ -6,13 +6,14 @@ using Verse;
 
 namespace DevTools.Testing;
 
-internal class SmokeTestGroup : ITestFixture
+internal class SmokeTestFixture : ITestFixture
 {
 	private readonly List<TestFunction> tests = [];
 
-	public SmokeTestGroup(Type type, TestType testType)
+	public SmokeTestFixture(ITestModule module, Type type, TestType testType)
 	{
-		Type = type;
+    Module = module;
+    Type = type;
 		TestType = testType;
     Args = [];
   }
@@ -29,7 +30,9 @@ internal class SmokeTestGroup : ITestFixture
 
 	public TestType TestType { get; }
 
-	public Type Type { get; }
+  public ITestModule Module { get; }
+
+  public Type Type { get; }
 
 	public Status Status { get; set; } = Status.NotRun;
 
@@ -56,6 +59,11 @@ internal class SmokeTestGroup : ITestFixture
     // TODO - despawn entity
     return true;
 	}
+
+  object ITestFixture.CreateInstance()
+  {
+    return this.CreateTestClass();
+  }
 
 	public bool TryAddFunction(MethodInfo methodInfo)
 	{

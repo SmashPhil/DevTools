@@ -11,82 +11,84 @@ namespace DevTools.Testing;
 
 internal static class TestExtensions
 {
-  extension(ITestFunction function)
+  public static bool HasParameterSource(ParameterInfo pinfo)
   {
-    public bool IsSubRoutine()
-    {
-      return function.MethodInfo.ReturnType == typeof(IEnumerator);
-    }
+    return pinfo.GetCustomAttribute<ParametersSourceAttribute>() != null ||
+           pinfo.GetCustomAttribute<ParametersAttribute>() != null ||
+           pinfo.GetCustomAttribute<DefParameterAttribute>() != null;
   }
 
-  extension(ITestFixture fixture)
+  public static object CreateTestClass(this ITestFixture fixture)
   {
-    public void AddTestMethods<T>(MethodInfo methodInfo, MethodType methodType,
-      List<ITestFunction> methodList) where T : Attribute
-    {
-      if (methodInfo.TryGetAttribute<T>() is null)
-        return;
+    return fixture.Args.Length == 0 ?
+      Activator.CreateInstance(fixture.Type) :
+      Activator.CreateInstance(fixture.Type, fixture.Args);
+  }
 
-      if (!MethodIsSafe(methodInfo, out string reason))
-      {
-        Log.Error($"Unable to add {methodInfo.Name} to unit test. {reason}");
-        return;
-      }
+  public static bool IsSubRoutine(this ITestFunction function)
+  {
+    return function.MethodInfo.ReturnType == typeof(IEnumerator);
+  }
 
-      if (methodInfo.MissingRequiredMods())
-        return;
-
-      foreach (ITestFunction function in CreateAllTests(CreateFunction, methodInfo))
-      {
-        methodList.Add(function);
-      }
+  public static void AddTestMethods<T>(this ITestFixture fixture, MethodInfo methodInfo, MethodType methodType,
+    List<ITestFunction> methodList) where T : Attribute
+  {
+    if (methodInfo.TryGetAttribute<T>() is null)
       return;
 
-      ITestFunction CreateFunction() => new TestFunction(fixture, methodInfo, methodType);
+    if (!MethodIsSafe(methodInfo, out string reason))
+    {
+      Log.Error($"Unable to add {methodInfo.Name} to fixture. {reason}");
+      return;
+    }
 
-      static bool MethodIsSafe(MethodInfo method, out string reason)
+    if (methodInfo.MissingRequiredMods())
+      return;
+
+    foreach (ITestFunction function in CreateAllTests(CreateFunction, methodInfo))
+    {
+      methodList.Add(function);
+    }
+    return;
+
+    ITestFunction CreateFunction() => new TestFunction(fixture, methodInfo, methodType);
+
+    static bool MethodIsSafe(MethodInfo method, out string reason)
+    {
+      reason = null;
+      if (method.ReturnType != typeof(void))
       {
-        reason = null;
-        if (method.ReturnType != typeof(void))
+        if (method.HasAttribute<SetUpAttribute>() ||
+            method.HasAttribute<TearDownAttribute>())
         {
-          if (method.HasAttribute<SetUpAttribute>() ||
-              method.HasAttribute<TearDownAttribute>())
-          {
-            reason = "Return type must be void.";
-            return false;
-          }
+          reason = "Return type must be void.";
+          return false;
         }
-        return true;
       }
+      return true;
     }
   }
 
-  extension(ITestCase testCase)
+  internal static bool MissingRequiredMods(this ITestCase testCase)
   {
-    internal bool MissingRequiredMods()
+    if (testCase.MetaData.Get<string[]>(MetaDataName.LoadIfAllModsActive) is { } packageIdsAll &&
+        !ModLister.AllModsActiveNoSuffix(packageIdsAll))
     {
-      if (testCase.MetaData.Get<string[]>(MetaDataName.LoadIfAllModsActive) is { } packageIdsAll &&
-          !ModLister.AllModsActiveNoSuffix(packageIdsAll))
-      {
-        return true;
-      }
-      return testCase.MetaData.Get<string[]>(MetaDataName.LoadIfAnyModsActive) is { } packageIdsAny &&
-             !ModLister.AnyModActiveNoSuffix(packageIdsAny);
+      return true;
     }
+    return testCase.MetaData.Get<string[]>(MetaDataName.LoadIfAnyModsActive) is { } packageIdsAny &&
+           !ModLister.AnyModActiveNoSuffix(packageIdsAny);
   }
 
-  extension(MemberInfo memberInfo)
+  internal static bool MissingRequiredMods(this MemberInfo memberInfo)
   {
-    internal bool MissingRequiredMods()
+    if (memberInfo.TryGetAttribute<LoadIfModsActiveAttribute>() is { } loadIfModsActive &&
+        !ModLister.AllModsActiveNoSuffix(loadIfModsActive.PackageIds))
     {
-      if (memberInfo.TryGetAttribute<LoadIfModsActiveAttribute>() is { } loadIfModsActive &&
-          !ModLister.AllModsActiveNoSuffix(loadIfModsActive.PackageIds))
-      {
-        return true;
-      }
-      return memberInfo.TryGetAttribute<LoadIfAnyModsActiveAttribute>() is { } loadIfAnyModActive &&
-             !ModLister.AnyModActiveNoSuffix(loadIfAnyModActive.PackageIds);
+      return true;
     }
+    return memberInfo.TryGetAttribute<LoadIfAnyModsActiveAttribute>() is { } loadIfAnyModActive &&
+           !ModLister.AnyModActiveNoSuffix(loadIfAnyModActive.PackageIds);
   }
 
   public static List<object[]> ExtractParameters(MethodBase method)
@@ -95,9 +97,15 @@ internal static class TestExtensions
     if (parameters.Length == 0)
       return [];
 
-    if (parameters.Length != 1 && Array.Exists(parameters, HasParameterInput))
+    if (parameters.Length > 0 && !parameters.All(HasParameterSource))
     {
-      Log.Error("Methods cannot support more than 1 parameter with input source");
+      Log.Error("Tests do not support parameters with no source attribute");
+      return [];
+    }
+
+    if (parameters.Length > 1)
+    {
+      Log.Error("Multiple parameters with source attributes is not yet supported.");
       return [];
     }
 
@@ -149,12 +157,6 @@ internal static class TestExtensions
       Log.Error($"Unable to register test fixture {type.Name}. MethodBase has parameters with no input attribute.");
     }
     return args;
-
-    static bool HasParameterInput(ParameterInfo pinfo)
-    {
-      return pinfo.GetCustomAttribute<ParametersSourceAttribute>() != null ||
-             pinfo.GetCustomAttribute<ParametersAttribute>() != null;
-    }
   }
 
   public static IEnumerable<T> CreateAllFixtures<T>(Func<T> factory, MemberInfo memberInfo, ConstructorInfo ctor)

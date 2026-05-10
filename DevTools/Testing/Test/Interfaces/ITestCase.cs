@@ -14,15 +14,15 @@ public interface ITestCase
 	/// </summary>
 	string Name { get; }
 
-	/// <summary>
-	/// Class type containing this test case
-	/// </summary>
-	Type Type { get; }
+  /// <summary>
+  /// Test module this test case belongs to
+  /// </summary>
+  ITestModule Module { get; }
 
-	/// <summary>
-	/// Final test status. Highest severity Status is preserved
-	/// </summary>
-	Status Status { get; set; }
+  /// <summary>
+  /// Final test status. Highest severity Status is preserved
+  /// </summary>
+  Status Status { get; set; }
 
 	/// <summary>
 	/// Meta data container for key/value lookups

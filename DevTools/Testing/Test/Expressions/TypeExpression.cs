@@ -4,14 +4,14 @@ namespace DevTools.Testing;
 
 public class TypeExpression : Expression
 {
-  public override Result CompareCase(ITestCase testCase, Comparison comparison, string value)
+  public override Result CompareFixture(ITestFixture fixture, Comparison comparison, string value)
   {
     bool result = comparison switch
     {
-      Comparison.Equals    => IsType(testCase.Type, value),
-      Comparison.NotEquals => !IsType(testCase.Type, value),
-      Comparison.Matches   => Matches(testCase.Type, value),
-      Comparison.NoMatches => !Matches(testCase.Type, value),
+      Comparison.Equals    => IsType(fixture.Type, value),
+      Comparison.NotEquals => !IsType(fixture.Type, value),
+      Comparison.Matches   => Matches(fixture.Type, value),
+      Comparison.NoMatches => !Matches(fixture.Type, value),
       _                    => throw new NotImplementedException(),
     };
     return ToResult(result);
