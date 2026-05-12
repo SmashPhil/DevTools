@@ -186,6 +186,7 @@ public sealed class TestRunner
 
       using (new Test.Scope(fixture))
       {
+        using LogWatcher fxWatcher = new(testManager.Config);
         // Scene change for test type
         if (currentTestType != fixture.TestType)
         {
@@ -207,7 +208,6 @@ public sealed class TestRunner
           continue;
         }
 
-        using LogWatcher watcher = new(testManager.Config);
         try
         {
           if (!RunPreTestActions(fixture))
@@ -235,6 +235,7 @@ public sealed class TestRunner
             do
             {
               using Test.Scope fns = new(function);
+              using LogWatcher fnWatcher = new(testManager.Config);
               if (++attempts > 1)
               {
                 DevLog.WriteVerbose("Retrying...");
