@@ -4,12 +4,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using JetBrains.Annotations;
 using UnityEngine.Assertions;
 using Verse;
 
 namespace DevTools.Testing;
 
-internal static class TestExtensions
+[PublicAPI]
+public static class TestExtensions
 {
   public static bool HasParameterSource(ParameterInfo pinfo)
   {
@@ -69,7 +71,7 @@ internal static class TestExtensions
     }
   }
 
-  internal static bool MissingRequiredMods(this ITestCase testCase)
+  public static bool MissingRequiredMods(this ITestCase testCase)
   {
     if (testCase.MetaData.Get<string[]>(MetaDataName.LoadIfAllModsActive) is { } packageIdsAll &&
         !ModLister.AllModsActiveNoSuffix(packageIdsAll))
@@ -80,7 +82,7 @@ internal static class TestExtensions
            !ModLister.AnyModActiveNoSuffix(packageIdsAny);
   }
 
-  internal static bool MissingRequiredMods(this MemberInfo memberInfo)
+  public static bool MissingRequiredMods(this MemberInfo memberInfo)
   {
     if (memberInfo.TryGetAttribute<LoadIfModsActiveAttribute>() is { } loadIfModsActive &&
         !ModLister.AllModsActiveNoSuffix(loadIfModsActive.PackageIds))
