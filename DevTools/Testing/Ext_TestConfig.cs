@@ -22,7 +22,7 @@ internal static class Ext_TestConfig
 		return logType switch
 		{
 			LogType.Assert or LogType.Exception or LogType.Error or LogType.Warning =>
-				config.SupressLogFailure(logType, message),
+				config.SuppressLogFailure(logType, message),
 			LogType.Log => false,
 			_           => throw new NotImplementedException(nameof(LogType)),
 		};

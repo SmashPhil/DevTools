@@ -26,7 +26,7 @@ public static class Ext_TestManagers
     const string ConfigFileExt = ".xml";
 
     T config = default;
-    string fileName = DevHarmony.Args?.config ?? manager.ConfigName;
+    string fileName = manager.ConfigName;
     string filePath = GenFile.ResolveCaseInsensitiveFilePath(Path.Combine(mod.RootDir, ConfigFolderName),
       $"{fileName}{ConfigFileExt}");
     FileInfo file = new(filePath);

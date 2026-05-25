@@ -66,7 +66,7 @@ public sealed class TestConfig : ITestConfig, ITestActions
     }
   }
 
-  bool ITestConfig.SupressLogFailure(LogType logType, string message)
+  bool ITestConfig.SuppressLogFailure(LogType logType, string message)
   {
     switch (logType)
     {

@@ -16,13 +16,11 @@ internal static class CommandRunner
 
     const string RunPlanArg = "--test-plan";
     const string SmokeTestArg = "--smoke-test";
-    const string ConfigArg = "--config";
 
     const string RunTestsShort = "-t";
     const string FilterShort = "-f";
     const string RunPlanShort = "-p";
     const string SmokeTestShort = "-s";
-    const string ConfigShort = "-c";
 
     const string BatchMode = "-batchmode";
     const string NoGraphics = "-nographics";
@@ -57,9 +55,6 @@ internal static class CommandRunner
           {
             result.testPlan = args[++i];
           }
-          break;
-        case ConfigArg or ConfigShort:
-          result.config = args[++i];
           break;
         case FilterArg or WhereArg or FilterShort:
           if (i + 1 < args.Length)
@@ -129,7 +124,6 @@ internal static class CommandRunner
     // Testing
     public string filterStr;
     public string testPlan;
-    public string config;
 
     public bool headless;
     public bool exitOnFinish;

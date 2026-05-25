@@ -63,7 +63,7 @@ public interface ITestConfig
 	/// <returns>
 	/// <see langword="true"/> if test case should fail. <see langword="false"/> if warnings should be ignored.
 	/// </returns>
-	bool SupressLogFailure(LogType logType, string message);
+	bool SuppressLogFailure(LogType logType, string message);
 
 	/// <summary>
 	/// Runs after the config file is loaded from disk.
