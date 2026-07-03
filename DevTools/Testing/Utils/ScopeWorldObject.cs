@@ -19,7 +19,9 @@ public readonly struct ScopeWorldObject : IDisposable
 
   void IDisposable.Dispose()
   {
-    if (!worldObject.Destroyed)
+    if (worldObject is { Destroyed: false })
+    {
       worldObject.Destroy();
+    }
   }
 }
