@@ -1,0 +1,11 @@
+using System;
+using JetBrains.Annotations;
+
+namespace DevTools.Testing;
+
+[MeansImplicitUse]
+[AttributeUsage(AttributeTargets.Method)]
+public class WorldGenerationSettingsAttribute : Attribute
+{
+    
+}

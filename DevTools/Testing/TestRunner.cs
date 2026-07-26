@@ -187,36 +187,38 @@ public sealed class TestRunner
       using (new Test.Scope(fixture))
       {
         using LogWatcher fxWatcher = new(testManager.Config);
-        // Scene change for test type
-        if (currentTestType != fixture.TestType)
-        {
-          currentTestType = fixture.TestType;
-          if (!fixture.SaveFile.NullOrEmpty())
-            yield return LoadSaveRoutine(fixture.SaveFile);
-          else
-            yield return ChangeSceneRoutine(currentTestType);
-        }
-
-        if (currentTestType != fixture.TestType)
-        {
-          Test.Fail($"Unable to transition scene to {fixture.TestType}");
-          foreach (ITestFunction function in functions)
-          {
-            using Test.Scope fns = new(function);
-            Test.Current.Status = Status.Skipped;
-          }
-          continue;
-        }
-
         try
         {
+          object instance = fixture.CreateInstance();
+          
+          // Scene change for test type
+          if (currentTestType != fixture.TestType)
+          {
+            currentTestType = fixture.TestType;
+            if (!fixture.SaveFile.NullOrEmpty())
+              yield return LoadSaveRoutine(fixture.SaveFile);
+            else
+              yield return ChangeSceneRoutine(currentTestType, fixture, instance);
+          }
+
+          if (currentTestType != fixture.TestType)
+          {
+            Test.Fail($"Unable to transition scene to {fixture.TestType}");
+            foreach (ITestFunction function in functions)
+            {
+              using Test.Scope fns = new(function);
+              Test.Current.Status = Status.Skipped;
+            }
+            continue;
+          }
+
+        
           if (!RunPreTestActions(fixture))
           {
             Test.Fail($"Failed pre-test actions for {fixture.Name}!");
             continue;
           }
 
-          object instance = fixture.CreateInstance();
           if (!fixture.OneTimeSetUp(instance))
           {
             Test.Fail($"Failed to set up {fixture.Name}!");
@@ -370,7 +372,7 @@ public sealed class TestRunner
     yield return WaitTillPlaying();
   }
 
-  private IEnumerator ChangeSceneRoutine(TestType testType)
+  private IEnumerator ChangeSceneRoutine(TestType testType, ITestFixture fixture, object instance)
   {
     ITestConfig config = testManager.Config;
     switch (testType)
@@ -381,7 +383,7 @@ public sealed class TestRunner
         break;
       case TestType.Playing:
         Assert.IsNull(Find.World);
-        yield return GenerateWorldRoutine(config.WorldSettings, config.MapSettings);
+        yield return GenerateWorldRoutine(fixture.WorldGenerationSettings(instance) ?? config.WorldSettings, fixture.MapGenerationSettings(instance) ?? config.MapSettings);
         break;
       case TestType.PostGameExit:
         if (Verse.Current.ProgramState != ProgramState.Playing)

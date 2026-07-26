@@ -65,6 +65,12 @@ internal class SmokeTestFixture : ITestFixture
     return this.CreateTestClass();
   }
 
+  public WorldGenerationSettings WorldGenerationSettings(object instance) 
+	  => null;
+  
+  public MapGenerationSettings MapGenerationSettings(object instance) 
+	  => null;
+
 	public bool TryAddFunction(MethodInfo methodInfo)
 	{
 		if (!MethodIsSafe(methodInfo, out string reason))

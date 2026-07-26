@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using Verse;
 
 namespace DevTools.Testing;
 
@@ -13,6 +14,8 @@ internal class TestFixture : ITestFixture
   private readonly List<ITestFunction> oneTimeSetUps = [];
   private readonly List<ITestFunction> oneTimeTearDowns = [];
   private readonly List<ITestFunction> tests = [];
+  private readonly List<Func<object, WorldGenerationSettings>> worldGen = [];
+  private readonly List<Func<object, MapGenerationSettings>> mapGen = [];
 
   public TestFixture(ITestModule module, Type type, TestType testType)
   {
@@ -42,6 +45,30 @@ internal class TestFixture : ITestFixture
 
   public Status Status { get; set; } = Status.NotRun;
 
+  WorldGenerationSettings ITestFixture.WorldGenerationSettings(object instance)
+  {
+    foreach (var func in worldGen)
+    {
+      var result = func(instance);
+      if (result is not null)
+        return result;
+    }
+
+    return null;
+  }
+
+  MapGenerationSettings ITestFixture.MapGenerationSettings(object instance)
+  {
+    foreach (var func in mapGen)
+    {
+      var result = func(instance);
+      if (result is not null)
+        return result;
+    }
+    
+    return null;
+  }
+  
   bool ITestFixture.OneTimeSetUp(object instance)
   {
     return ExecuteAll(instance, oneTimeSetUps);
@@ -89,6 +116,32 @@ internal class TestFixture : ITestFixture
       this.AddTestMethods<OneTimeSetUpAttribute>(method, MethodType.SetUp, oneTimeSetUps);
       this.AddTestMethods<OneTimeTearDownAttribute>(method, MethodType.TearDown, oneTimeTearDowns);
       this.AddTestMethods<TestAttribute>(method, MethodType.Test, tests);
+
+      if (method.TryGetAttribute<WorldGenerationSettingsAttribute>() is not null)
+      {
+        if (!TestExtensions.MethodIsSafe(method, out var reason))
+        {
+          Log.Error($"Unable to add {method.Name} to fixture. {reason}");
+        }
+        else
+        {
+          worldGen.Add(obj => 
+            method.Invoke(obj, null) as WorldGenerationSettings);
+        }
+      }
+
+      if (method.TryGetAttribute<MapGenerationSettingsAttribute>() is not null)
+      {
+        if (!TestExtensions.MethodIsSafe(method, out var reason))
+        {
+          Log.Error($"Unable to add {method.Name} to fixture. {reason}");
+        }
+        else
+        {
+          mapGen.Add(obj => 
+            method.Invoke(obj, null) as MapGenerationSettings);
+        }
+      }
     }
   }
 

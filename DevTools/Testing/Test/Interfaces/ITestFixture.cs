@@ -37,6 +37,18 @@ public interface ITestFixture : ITestCase
   object CreateInstance();
 
   /// <summary>
+  /// Called once before world and map generation, used to override generation settings for a specific test
+  /// </summary>
+  [CanBeNull]
+  WorldGenerationSettings WorldGenerationSettings(object instance);
+  
+  /// <summary>
+  /// Called once before world and map generation, used to override generation settings for a specific test
+  /// </summary>
+  [CanBeNull]
+  MapGenerationSettings MapGenerationSettings(object instance);
+  
+  /// <summary>
   /// Called once before any test function in this group is executed.
   /// </summary>
   bool OneTimeSetUp(object instance);
