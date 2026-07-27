@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
+using RimWorld;
 using Verse;
 
 namespace DevTools.Testing;
@@ -16,6 +17,8 @@ internal class TestFixture : ITestFixture
   private readonly List<ITestFunction> tests = [];
   private readonly List<Func<object, WorldGenerationSettings>> worldGen = [];
   private readonly List<Func<object, MapGenerationSettings>> mapGen = [];
+  private readonly List<Func<object, Storyteller>>  storytellerGen = [];
+  private readonly List<Func<object, Scenario>> scenarioGen = [];
 
   public TestFixture(ITestModule module, Type type, TestType testType)
   {
@@ -68,7 +71,31 @@ internal class TestFixture : ITestFixture
     
     return null;
   }
-  
+
+  public Scenario Scenario(object instance)
+  {
+    foreach (var func in scenarioGen)
+    {
+      var result = func(instance);
+      if (result is not null)
+        return result;
+    }
+
+    return null;
+  }
+
+  public Storyteller Storyteller(object instance)
+  {
+    foreach (var func in storytellerGen)
+    {
+      var result = func(instance);
+      if (result is not null)
+        return result;
+    }
+
+    return null;
+  }
+
   bool ITestFixture.OneTimeSetUp(object instance)
   {
     return ExecuteAll(instance, oneTimeSetUps);
@@ -118,30 +145,32 @@ internal class TestFixture : ITestFixture
       this.AddTestMethods<TestAttribute>(method, MethodType.Test, tests);
 
       if (method.TryGetAttribute<WorldGenerationSettingsAttribute>() is not null)
-      {
-        if (!TestExtensions.MethodIsSafe(method, out var reason))
-        {
-          Log.Error($"Unable to add {method.Name} to fixture. {reason}");
-        }
+        if (method.ReturnType != typeof(WorldGenerationSettings))
+          Log.Error($"Unable to add {method.Name} to fixture. Return type must be WorldGenerationSettings");
         else
-        {
-          worldGen.Add(obj => 
+          worldGen.Add(obj =>
             method.Invoke(obj, null) as WorldGenerationSettings);
-        }
-      }
 
       if (method.TryGetAttribute<MapGenerationSettingsAttribute>() is not null)
-      {
-        if (!TestExtensions.MethodIsSafe(method, out var reason))
-        {
-          Log.Error($"Unable to add {method.Name} to fixture. {reason}");
-        }
+        if (method.ReturnType != typeof(MapGenerationSettings))
+          Log.Error($"Unable to add {method.Name} to fixture. Return type must be MapGenerationSettings");
         else
-        {
-          mapGen.Add(obj => 
+          mapGen.Add(obj =>
             method.Invoke(obj, null) as MapGenerationSettings);
-        }
-      }
+      
+      if (method.TryGetAttribute<StorytellerAttribute>() is not null)
+        if (method.ReturnType != typeof(Storyteller))
+          Log.Error($"Unable to add {method.Name} to fixture. Return type must be Storyteller");
+        else
+          storytellerGen.Add(obj =>
+            method.Invoke(obj, null) as Storyteller);
+
+      if (method.TryGetAttribute<ScenarioAttribute>() is not null)
+        if (method.ReturnType != typeof(Scenario))
+          Log.Error($"Unable to add {method.Name} to fixture. Return type must be Scenario");
+        else
+          scenarioGen.Add(obj =>
+            method.Invoke(obj, null) as Scenario);
     }
   }
 

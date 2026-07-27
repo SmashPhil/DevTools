@@ -54,33 +54,21 @@ public static class TestExtensions
     return;
 
     ITestFunction CreateFunction() => new TestFunction(fixture, methodInfo, methodType);
-  }
 
-  public static bool MethodIsSafe(MethodInfo method, out string reason)
-  {
-    reason = null;
-    if (method.ReturnType != typeof(void))
+    static bool MethodIsSafe(MethodInfo method, out string reason)
     {
-      if (method.HasAttribute<SetUpAttribute>() ||
-          method.HasAttribute<TearDownAttribute>())
+      reason = null;
+      if (method.ReturnType != typeof(void))
       {
-        reason = "Return type must be void.";
-        return false;
+        if (method.HasAttribute<SetUpAttribute>() ||
+            method.HasAttribute<TearDownAttribute>())
+        {
+          reason = "Return type must be void.";
+          return false;
+        }
       }
-
-      if(method.HasAttribute<WorldGenerationSettingsAttribute>() && method.ReturnType != typeof(WorldGenerationSettings))
-      {
-        reason = "Return type must be WorldGenerationSettings.";
-        return false;
-      }
-
-      if (method.HasAttribute<MapGenerationSettingsAttribute>() && method.ReturnType != typeof(MapGenerationSettings))
-      {
-        reason = "Return type must be MapGenerationSettings.";
-        return false;
-      }
+      return true;
     }
-    return true;
   }
 
   public static bool MissingRequiredMods(this ITestCase testCase)
