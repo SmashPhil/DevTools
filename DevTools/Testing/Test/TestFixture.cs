@@ -144,34 +144,24 @@ internal class TestFixture : ITestFixture
       this.AddTestMethods<OneTimeTearDownAttribute>(method, MethodType.TearDown, oneTimeTearDowns);
       this.AddTestMethods<TestAttribute>(method, MethodType.Test, tests);
 
-      if (method.TryGetAttribute<WorldGenerationSettingsAttribute>() is not null)
-        if (method.ReturnType != typeof(WorldGenerationSettings))
-          Log.Error($"Unable to add {method.Name} to fixture. Return type must be WorldGenerationSettings");
-        else
-          worldGen.Add(obj =>
-            method.Invoke(obj, null) as WorldGenerationSettings);
-
-      if (method.TryGetAttribute<MapGenerationSettingsAttribute>() is not null)
-        if (method.ReturnType != typeof(MapGenerationSettings))
-          Log.Error($"Unable to add {method.Name} to fixture. Return type must be MapGenerationSettings");
-        else
-          mapGen.Add(obj =>
-            method.Invoke(obj, null) as MapGenerationSettings);
-      
-      if (method.TryGetAttribute<StorytellerAttribute>() is not null)
-        if (method.ReturnType != typeof(Storyteller))
-          Log.Error($"Unable to add {method.Name} to fixture. Return type must be Storyteller");
-        else
-          storytellerGen.Add(obj =>
-            method.Invoke(obj, null) as Storyteller);
-
-      if (method.TryGetAttribute<ScenarioAttribute>() is not null)
-        if (method.ReturnType != typeof(Scenario))
-          Log.Error($"Unable to add {method.Name} to fixture. Return type must be Scenario");
-        else
-          scenarioGen.Add(obj =>
-            method.Invoke(obj, null) as Scenario);
+      AddGameGenMethods<WorldGenerationSettingsAttribute, WorldGenerationSettings>(worldGen, method);
+      AddGameGenMethods<MapGenerationSettingsAttribute, MapGenerationSettings>(mapGen, method);
+      AddGameGenMethods<StorytellerAttribute, Storyteller>(storytellerGen, method);
+      AddGameGenMethods<ScenarioAttribute, Scenario>(scenarioGen, method);
     }
+  }
+
+  private void AddGameGenMethods<TAttribute, TSettings>(List<Func<object, TSettings>> funcList, MethodInfo method) 
+    where TAttribute : Attribute where TSettings : class
+  {
+    if (method.TryGetAttribute<TAttribute>() is null) 
+      return;
+    
+    if (method.ReturnType != typeof(TSettings))
+      Log.Error($"Unable to add {method.Name} to fixture. Return type must be {typeof(TSettings).Name}");
+    else
+      funcList.Add(obj =>
+        method.Invoke(obj, null) as TSettings);
   }
 
   public void SortByExecutionPriority()
