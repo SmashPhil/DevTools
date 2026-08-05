@@ -187,32 +187,33 @@ public sealed class TestRunner
       using (new Test.Scope(fixture))
       {
         using LogWatcher fxWatcher = new(testManager.Config);
+
+        object instance = fixture.CreateInstance();
+
+        // Scene change for test type
+        if (currentTestType != fixture.TestType)
+        {
+          currentTestType = fixture.TestType;
+          if (!fixture.SaveFile.NullOrEmpty())
+            yield return LoadSaveRoutine(fixture.SaveFile);
+          else
+            yield return ChangeSceneRoutine(currentTestType, fixture, instance);
+        }
+
+        if (currentTestType != fixture.TestType)
+        {
+          Test.Fail($"Unable to transition scene to {fixture.TestType}");
+          foreach (ITestFunction function in functions)
+          {
+            using Test.Scope fns = new(function);
+            Test.Current.Status = Status.Skipped;
+          }
+
+          continue;
+        }
+
         try
         {
-          object instance = fixture.CreateInstance();
-          
-          // Scene change for test type
-          if (currentTestType != fixture.TestType)
-          {
-            currentTestType = fixture.TestType;
-            if (!fixture.SaveFile.NullOrEmpty())
-              yield return LoadSaveRoutine(fixture.SaveFile);
-            else
-              yield return ChangeSceneRoutine(currentTestType, fixture, instance);
-          }
-
-          if (currentTestType != fixture.TestType)
-          {
-            Test.Fail($"Unable to transition scene to {fixture.TestType}");
-            foreach (ITestFunction function in functions)
-            {
-              using Test.Scope fns = new(function);
-              Test.Current.Status = Status.Skipped;
-            }
-            continue;
-          }
-
-        
           if (!RunPreTestActions(fixture))
           {
             Test.Fail($"Failed pre-test actions for {fixture.Name}!");
