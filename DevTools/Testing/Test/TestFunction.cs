@@ -45,7 +45,21 @@ internal class TestFunction : ITestFunction
       object result = MethodInfo.Invoke(instance, Args);
       if (ExpectedResult != null)
       {
-        Assert.AreEqual(ExpectedResult, result);
+        switch (ExpectedResult)
+        {
+          case float or double or decimal:
+          {
+            float a = Convert.ToSingle(ExpectedResult);
+            float b = Convert.ToSingle(result);
+            Assert.AreApproximatelyEqual(a, b);
+            break;
+          }
+          default:
+          {
+            Assert.AreEqual(ExpectedResult, result);
+            break;
+          }
+        }
       }
     }
     catch (Exception ex)

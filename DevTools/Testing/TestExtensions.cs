@@ -17,7 +17,7 @@ public static class TestExtensions
   {
     return pinfo.GetCustomAttribute<ParametersSourceAttribute>() != null ||
            pinfo.GetCustomAttribute<ParametersAttribute>() != null ||
-           pinfo.GetCustomAttribute<DefParameterAttribute>() != null;
+           pinfo.GetCustomAttribute<DefParametersAttribute>() != null;
   }
 
   public static object CreateTestClass(this ITestFixture fixture)
@@ -117,18 +117,7 @@ public static class TestExtensions
     List<object[]> args = [];
     if (pinfo.GetCustomAttribute<ParametersSourceAttribute>() is { } sourceAttr)
     {
-      Type fieldType = sourceAttr.Type ?? type!;
-      FieldInfo sourceField = AccessTools.Field(fieldType, sourceAttr.FieldName);
-      if (sourceField is null)
-      {
-        Log.Error($"Unable to find parameter source {fieldType}.{sourceAttr.FieldName}.");
-        return [];
-      }
-      Array paramArray = (Array)sourceField.GetValue(null);
-      foreach (object obj in paramArray)
-      {
-        args.Add([obj]);
-      }
+      AddArgsFromParamSource(sourceAttr.Type ?? type, sourceAttr.Name);
     }
     else if (pinfo.GetCustomAttribute<ParametersAttribute>() is { } paramsAttr)
     {
@@ -137,14 +126,28 @@ public static class TestExtensions
         args.Add([obj]);
       }
     }
-    else if (pinfo.GetCustomAttribute<DefParameterAttribute>() is {} defParamAttr)
+    else if (pinfo.GetCustomAttribute<DefParametersAttribute>() is { } defParamAttr)
     {
-      HashSet<string> allowedPackageIds = defParamAttr.OnlyFromMods?.ToHashSet();
+      AddArgsFromDefParameter(defParamAttr);
+    }
+    else
+    {
+      Log.Error($"Unable to register test fixture {type.Name}. MethodBase has parameters with no input attribute.");
+    }
+    return args;
+
+    void AddArgsFromDefParameter(DefParametersAttribute attribute)
+    {
+      HashSet<string> allowedPackageIds = !attribute.OnlyFromMods.NullOrEmpty() ?
+          attribute.OnlyFromMods.ToHashSet() :
+          null;
       var defs = GenDefDatabase.GetAllDefsInDatabaseForDef(pinfo.ParameterType);
       foreach (Def def in defs)
       {
         // Defs with no mod assigned are runtime defs that were incorrectly added, or are mock defs.
         if (def.modContentPack is null)
+          continue;
+        if (attribute.Filter != null && !(bool)attribute.Filter.Invoke(null, [def]))
           continue;
 
         if (allowedPackageIds == null ||
@@ -154,11 +157,37 @@ public static class TestExtensions
         }
       }
     }
-    else
+
+    void AddArgsFromParamSource(Type sourceType, string sourceName)
     {
-      Log.Error($"Unable to register test fixture {type.Name}. MethodBase has parameters with no input attribute.");
+      if (sourceName.NullOrEmpty())
+      {
+        Log.Error("Unable to fetch parameters, empty function name.");
+        return;
+      }
+      // Try field first, then fall back to iterator function
+      FieldInfo sourceField = AccessTools.Field(sourceType, sourceName);
+      if (sourceField != null)
+      {
+        Array paramArray = (Array)sourceField.GetValue(null);
+        foreach (object obj in paramArray)
+        {
+          args.Add([obj]);
+        }
+        return;
+      }
+      MethodInfo sourceMethod = AccessTools.Method(sourceType, sourceName);
+      if (sourceMethod == null)
+      {
+        Log.Error($"Unable to fetch parameters. Member \"{sourceType}::{sourceName} not found.");
+        return;
+      }
+      IEnumerable objects = (IEnumerable)sourceMethod.Invoke(null, []);
+      foreach (object obj in objects)
+      {
+        args.Add([obj]);
+      }
     }
-    return args;
   }
 
   public static IEnumerable<T> CreateAllFixtures<T>(Func<T> factory, MemberInfo memberInfo, ConstructorInfo ctor)

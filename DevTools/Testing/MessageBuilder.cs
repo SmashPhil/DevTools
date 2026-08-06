@@ -20,7 +20,7 @@ internal class MessageBuilder
   public static string GetEqualityMessage(object expected, object actual, bool expectEqual)
   {
     string failureMessage = $"Values are {(expectEqual ? "not " : "")}equal.";
-    return GetMessage(failureMessage, $"{actual} {(expectEqual ? "==" : "!=")} {expected}");
+    return GetMessage(failureMessage, $"Expected {expected} {(expectEqual ? "==" : "!=")} {actual}");
   }
 
   public static string NullFailureMessage(object value, bool expectNull)
