@@ -187,6 +187,9 @@ public sealed class TestRunner
       using (new Test.Scope(fixture))
       {
         using LogWatcher fxWatcher = new(testManager.Config);
+
+        object instance = fixture.CreateInstance();
+
         // Scene change for test type
         if (currentTestType != fixture.TestType)
         {
@@ -194,7 +197,7 @@ public sealed class TestRunner
           if (!fixture.SaveFile.NullOrEmpty())
             yield return LoadSaveRoutine(fixture.SaveFile);
           else
-            yield return ChangeSceneRoutine(currentTestType);
+            yield return ChangeSceneRoutine(currentTestType, fixture, instance);
         }
 
         if (currentTestType != fixture.TestType)
@@ -205,6 +208,7 @@ public sealed class TestRunner
             using Test.Scope fns = new(function);
             Test.Current.Status = Status.Skipped;
           }
+
           continue;
         }
 
@@ -216,7 +220,6 @@ public sealed class TestRunner
             continue;
           }
 
-          object instance = fixture.CreateInstance();
           if (!fixture.OneTimeSetUp(instance))
           {
             Test.Fail($"Failed to set up {fixture.Name}!");
@@ -370,7 +373,7 @@ public sealed class TestRunner
     yield return WaitTillPlaying();
   }
 
-  private IEnumerator ChangeSceneRoutine(TestType testType)
+  private IEnumerator ChangeSceneRoutine(TestType testType, ITestFixture fixture, object instance)
   {
     ITestConfig config = testManager.Config;
     switch (testType)
@@ -381,7 +384,8 @@ public sealed class TestRunner
         break;
       case TestType.Playing:
         Assert.IsNull(Find.World);
-        yield return GenerateWorldRoutine(config.WorldSettings, config.MapSettings);
+        yield return GenerateWorldRoutine(fixture.WorldGenerationSettings(instance) ?? config.WorldSettings, 
+          fixture.MapGenerationSettings(instance) ?? config.MapSettings, fixture.Scenario(instance), fixture.Storyteller(instance));
         break;
       case TestType.PostGameExit:
         if (Verse.Current.ProgramState != ProgramState.Playing)
@@ -406,10 +410,10 @@ public sealed class TestRunner
     }
 
     static IEnumerator GenerateWorldRoutine(WorldGenerationSettings worldGenSettings,
-      MapGenerationSettings mapGenSettings)
+      MapGenerationSettings mapGenSettings, Scenario scenario = null, Storyteller storyteller = null)
     {
       using GenStepWarningDisabler gswd = new();
-      GenerateWorld(worldGenSettings, mapGenSettings);
+      GenerateWorld(worldGenSettings, mapGenSettings, scenario, storyteller);
       yield return WaitTillPlaying();
     }
   }
@@ -425,11 +429,11 @@ public sealed class TestRunner
   }
 
   private static void GenerateWorld(WorldGenerationSettings worldGenSettings,
-    MapGenerationSettings mapGenSettings)
+    MapGenerationSettings mapGenSettings, Scenario scenario = null, Storyteller storyteller = null)
   {
     LongEventHandler.QueueLongEvent(delegate
     {
-      InitGame(worldGenSettings, mapGenSettings);
+      InitGame(worldGenSettings, mapGenSettings, scenario, storyteller);
       LongEventHandler.QueueLongEvent(delegate
       {
         Find.GameInitData.PrepForMapGen();
@@ -439,7 +443,7 @@ public sealed class TestRunner
   }
 
   private static void InitGame(WorldGenerationSettings worldGenSettings,
-    MapGenerationSettings mapGenSettings)
+    MapGenerationSettings mapGenSettings, Scenario scenario = null, Storyteller storyteller = null)
   {
     Game game = new();
     GameInitData gameInitData = new();
@@ -454,9 +458,9 @@ public sealed class TestRunner
     Game.ClearCaches();
     Verse.Current.Game = game;
     Verse.Current.Game.InitData = gameInitData;
-    Verse.Current.Game.Scenario = ScenarioDefOf.Crashlanded.scenario;
+    Verse.Current.Game.Scenario = scenario ?? ScenarioDefOf.Crashlanded.scenario;
     Find.Scenario.PreConfigure();
-    Verse.Current.Game.storyteller = new Storyteller(StorytellerDefOf.Cassandra, DifficultyDefOf.Rough);
+    Verse.Current.Game.storyteller = storyteller ?? new Storyteller(StorytellerDefOf.Cassandra, DifficultyDefOf.Rough);
     Verse.Current.Game.World = WorldGenerator.GenerateWorld(worldGenSettings.percent,
       GenText.RandomSeedString(),
       worldGenSettings.rainfall, worldGenSettings.temperature, worldGenSettings.population,

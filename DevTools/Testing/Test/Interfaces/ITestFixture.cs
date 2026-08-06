@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using JetBrains.Annotations;
+using RimWorld;
 
 namespace DevTools.Testing;
 
@@ -36,6 +37,30 @@ public interface ITestFixture : ITestCase
   /// </summary>
   object CreateInstance();
 
+  /// <summary>
+  /// Called once before world and map generation, used to override world generation settings for a specific test
+  /// </summary>
+  [CanBeNull]
+  WorldGenerationSettings WorldGenerationSettings(object instance);
+  
+  /// <summary>
+  /// Called once before world and map generation, used to override map generation settings for a specific test
+  /// </summary>
+  [CanBeNull]
+  MapGenerationSettings MapGenerationSettings(object instance);
+
+  /// <summary>
+  /// Called once before world and map generation, used to override the scenario for a specific test
+  /// </summary>
+  [CanBeNull]
+  Scenario Scenario(object instance);
+  
+  /// <summary>
+  /// Called once before world and map generation, used to override the storyteller for a specific test
+  /// </summary>
+  [CanBeNull]
+  Storyteller Storyteller(object instance);
+  
   /// <summary>
   /// Called once before any test function in this group is executed.
   /// </summary>
