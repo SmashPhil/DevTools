@@ -7,6 +7,7 @@ using RimWorld.Planet;
 using UnityEngine;
 using UnityEngine.Assertions;
 using Verse;
+using Verse.Profile;
 using static DevTools.Testing.Expression;
 
 namespace DevTools.Testing;
@@ -166,6 +167,7 @@ public sealed class TestRunner
     TestType currentTestType = TestType.MainMenu;
     TestReport report = new();
 
+    bool restoreEnvironment = false;
     // NOTE: Multi-pass enumeration is intentional for now. Setting all to pending before running
     // tests makes it easier for deciding when a test status can be overwritten by a new result,
     // such as premature skips / failures.
@@ -189,16 +191,28 @@ public sealed class TestRunner
         using LogWatcher fxWatcher = new(testManager.Config);
 
         object instance = fixture.CreateInstance();
-
+        FixtureGameSettings fxtSettings = new(instance);
         // Scene change for test type
-        if (currentTestType != fixture.TestType)
+        bool hasSaveFile = !fixture.SaveFile.NullOrEmpty();
+        if (currentTestType != fixture.TestType || hasSaveFile || fxtSettings.NeedsReload || restoreEnvironment)
         {
           currentTestType = fixture.TestType;
-          if (!fixture.SaveFile.NullOrEmpty())
+          if (hasSaveFile)
+          {
+            if (fxtSettings.NeedsReload)
+            {
+              Log.Warning($"Fixture {fixture.Name} has custom settings for game generation, " +
+                          $"but is configured to load a save file.");
+            }
             yield return LoadSaveRoutine(fixture.SaveFile);
+          }
           else
-            yield return ChangeSceneRoutine(currentTestType, fixture, instance);
+          {
+            yield return ChangeSceneRoutine(currentTestType, fixture, fxtSettings);
+          }
         }
+        // Restore default test environment if this fixture loaded a save or has custom game settings.
+        restoreEnvironment = hasSaveFile || fxtSettings.NeedsReload;
 
         if (currentTestType != fixture.TestType)
         {
@@ -373,25 +387,42 @@ public sealed class TestRunner
     yield return WaitTillPlaying();
   }
 
-  private IEnumerator ChangeSceneRoutine(TestType testType, ITestFixture fixture, object instance)
+  private IEnumerator ChangeSceneRoutine(TestType testType, ITestFixture fixture, FixtureGameSettings settings)
   {
     ITestConfig config = testManager.Config;
     switch (testType)
     {
       case TestType.MainMenu:
+      {
         if (Verse.Current.ProgramState != ProgramState.Entry)
+        {
           yield return LoadMainMenu();
+        }
+        if (settings.NeedsReload)
+        {
+          // For post-game tests that require specific game generation settings and test at the main menu after exiting.
+          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
+            scenario: null, storyteller: null);
+          yield return LoadMainMenu();
+        }
         break;
+      }
       case TestType.Playing:
-        Assert.IsNull(Find.World);
-        yield return GenerateWorldRoutine(fixture.WorldGenerationSettings(instance) ?? config.WorldSettings, 
-          fixture.MapGenerationSettings(instance) ?? config.MapSettings, fixture.Scenario(instance), fixture.Storyteller(instance));
+      {
+        yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
+          settings.scenario, settings.storyteller);
         break;
+      }
       case TestType.PostGameExit:
-        if (Verse.Current.ProgramState != ProgramState.Playing)
-          yield return GenerateWorldRoutine(config.WorldSettings, config.MapSettings);
+      {
+        if (settings.NeedsReload || Verse.Current.ProgramState != ProgramState.Playing)
+        {
+          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
+            scenario: null, storyteller: null);
+        }
         yield return LoadMainMenu();
         break;
+      }
       default:
         throw new ArgumentException("Trying to execute disabled test type.");
     }
@@ -410,7 +441,7 @@ public sealed class TestRunner
     }
 
     static IEnumerator GenerateWorldRoutine(WorldGenerationSettings worldGenSettings,
-      MapGenerationSettings mapGenSettings, Scenario scenario = null, Storyteller storyteller = null)
+      MapGenerationSettings mapGenSettings, [CanBeNull] Scenario scenario, [CanBeNull] Storyteller storyteller)
     {
       using GenStepWarningDisabler gswd = new();
       GenerateWorld(worldGenSettings, mapGenSettings, scenario, storyteller);
@@ -433,6 +464,7 @@ public sealed class TestRunner
   {
     LongEventHandler.QueueLongEvent(delegate
     {
+      Verse.Current.Game?.Dispose();
       InitGame(worldGenSettings, mapGenSettings, scenario, storyteller);
       LongEventHandler.QueueLongEvent(delegate
       {
@@ -445,6 +477,7 @@ public sealed class TestRunner
   private static void InitGame(WorldGenerationSettings worldGenSettings,
     MapGenerationSettings mapGenSettings, Scenario scenario = null, Storyteller storyteller = null)
   {
+    MemoryUtility.ClearAllMapsAndWorld();
     Game game = new();
     GameInitData gameInitData = new();
 
@@ -508,5 +541,23 @@ public sealed class TestRunner
     {
       Application.runInBackground = runInBackground;
     }
+  }
+
+  private readonly struct FixtureGameSettings
+  {
+    public readonly WorldGenerationSettings worldGen;
+    public readonly Scenario scenario;
+    public readonly Storyteller storyteller;
+    public readonly MapGenerationSettings mapGen;
+    
+    public FixtureGameSettings(object instance)
+    {
+      worldGen = (instance as IWorldGeneration)?.WorldGenerationSettings;
+      scenario = (instance as IScenario)?.Scenario;
+      storyteller = (instance as IStoryteller)?.Storyteller;
+      mapGen = (instance as IMapGeneration)?.MapGenerationSettings;
+    }
+
+    public bool NeedsReload => worldGen != null || scenario != null || storyteller != null || mapGen != null;
   }
 }

@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using RimWorld;
 using Verse;
 
 namespace DevTools.Testing;
@@ -65,18 +64,6 @@ internal class SmokeTestFixture : ITestFixture
     {
         return this.CreateTestClass();
     }
-
-    public WorldGenerationSettings WorldGenerationSettings(object instance)
-        => null;
-
-    public MapGenerationSettings MapGenerationSettings(object instance)
-        => null;
-
-    public Storyteller Storyteller(object instance)
-        => null;
-
-    public Scenario Scenario(object instance)
-        => null;
 
     public bool TryAddFunction(MethodInfo methodInfo)
     {

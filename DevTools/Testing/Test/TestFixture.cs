@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
-using RimWorld;
-using Verse;
 
 namespace DevTools.Testing;
 
@@ -15,10 +13,6 @@ internal class TestFixture : ITestFixture
   private readonly List<ITestFunction> oneTimeSetUps = [];
   private readonly List<ITestFunction> oneTimeTearDowns = [];
   private readonly List<ITestFunction> tests = [];
-  private readonly List<Func<object, WorldGenerationSettings>> worldGen = [];
-  private readonly List<Func<object, MapGenerationSettings>> mapGen = [];
-  private readonly List<Func<object, Storyteller>>  storytellerGen = [];
-  private readonly List<Func<object, Scenario>> scenarioGen = [];
 
   public TestFixture(ITestModule module, Type type, TestType testType)
   {
@@ -47,54 +41,6 @@ internal class TestFixture : ITestFixture
   public virtual string Name { get; }
 
   public Status Status { get; set; } = Status.NotRun;
-
-  WorldGenerationSettings ITestFixture.WorldGenerationSettings(object instance)
-  {
-    foreach (var func in worldGen)
-    {
-      var result = func(instance);
-      if (result is not null)
-        return result;
-    }
-
-    return null;
-  }
-
-  MapGenerationSettings ITestFixture.MapGenerationSettings(object instance)
-  {
-    foreach (var func in mapGen)
-    {
-      var result = func(instance);
-      if (result is not null)
-        return result;
-    }
-    
-    return null;
-  }
-
-  public Scenario Scenario(object instance)
-  {
-    foreach (var func in scenarioGen)
-    {
-      var result = func(instance);
-      if (result is not null)
-        return result;
-    }
-
-    return null;
-  }
-
-  public Storyteller Storyteller(object instance)
-  {
-    foreach (var func in storytellerGen)
-    {
-      var result = func(instance);
-      if (result is not null)
-        return result;
-    }
-
-    return null;
-  }
 
   bool ITestFixture.OneTimeSetUp(object instance)
   {
@@ -143,25 +89,7 @@ internal class TestFixture : ITestFixture
       this.AddTestMethods<OneTimeSetUpAttribute>(method, MethodType.SetUp, oneTimeSetUps);
       this.AddTestMethods<OneTimeTearDownAttribute>(method, MethodType.TearDown, oneTimeTearDowns);
       this.AddTestMethods<TestAttribute>(method, MethodType.Test, tests);
-
-      AddGameGenMethods<WorldGenerationSettingsAttribute, WorldGenerationSettings>(worldGen, method);
-      AddGameGenMethods<MapGenerationSettingsAttribute, MapGenerationSettings>(mapGen, method);
-      AddGameGenMethods<StorytellerAttribute, Storyteller>(storytellerGen, method);
-      AddGameGenMethods<ScenarioAttribute, Scenario>(scenarioGen, method);
     }
-  }
-
-  private void AddGameGenMethods<TAttribute, TSettings>(List<Func<object, TSettings>> funcList, MethodInfo method) 
-    where TAttribute : Attribute where TSettings : class
-  {
-    if (method.TryGetAttribute<TAttribute>() is null) 
-      return;
-    
-    if (method.ReturnType != typeof(TSettings))
-      Log.Error($"Unable to add {method.Name} to fixture. Return type must be {typeof(TSettings).Name}");
-    else
-      funcList.Add(obj =>
-        method.Invoke(obj, null) as TSettings);
   }
 
   public void SortByExecutionPriority()
