@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using DevTools.Benchmarking;
@@ -113,6 +114,15 @@ public static class Test
       }
     }
     ResetAll(manager);
+  }
+
+  internal static void GenerateReport<T>(string path, ITestManager manager) where T: ITestReport
+  {
+    ITestReport report = (ITestReport)Activator.CreateInstance(typeof(T));
+    if (cache.TryGetValue(manager, out TestCache dataCache))
+    {
+      report.Tabulate(path, dataCache.AssemblyGroups.ToList());
+    }
   }
 
   internal static void LogResults(ITestFixture fixture, List<ITestFunction> functions)

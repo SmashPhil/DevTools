@@ -21,8 +21,6 @@ public delegate bool TestAction(ITestFixture group);
 [PublicAPI]
 public sealed class TestRunner
 {
-  private static TestRunner current;
-
   public readonly ITestManager testManager;
 
   private readonly ExpressionTree expressionTree;
@@ -57,9 +55,9 @@ public sealed class TestRunner
     this.expressionTree = expressionTree;
   }
 
-  public static bool Active => current != null;
+  public static bool Active => Current != null;
 
-  public static TestRunner Current => current;
+  public static TestRunner Current { get; private set; }
 
   private bool StopRequested { get; set; }
 
@@ -132,9 +130,7 @@ public sealed class TestRunner
 
   public static void StopIfActive()
   {
-    if (!Active)
-      return;
-    current.SignalToStop();
+    Current?.SignalToStop();
   }
 
   public void SignalToStop()
@@ -515,14 +511,14 @@ public sealed class TestRunner
     public TestEnabler(TestRunner runner)
     {
       stcDisabler = new StackTraceCacheDisabler();
-      current = runner;
+      Current = runner;
       OnTestRunnerStateChange?.Invoke(true);
     }
 
     void IDisposable.Dispose()
     {
       stcDisabler.Dispose();
-      current = null;
+      Current = null;
       OnTestRunnerStateChange?.Invoke(false);
     }
   }

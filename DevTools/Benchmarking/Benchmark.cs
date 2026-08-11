@@ -224,13 +224,6 @@ public static class Benchmark
 		};
 	}
 
-	public enum Setting
-	{
-		None = 0,
-		HasContext = 1 << 0,
-		HasReturn = 1 << 1
-	}
-
 	public enum Measurement
 	{
 		Auto,
@@ -302,10 +295,10 @@ public static class Benchmark
 		public double StdDev => stdDev;
 
 		public string Formatted(double value)
-		{
-			return
-				$"{value.ToString($"0.{new string('0', decimalPlaces)}")} {MeasurementSuffix(measurement)}";
-		}
+    {
+      return
+        $"{value.ToString($"0.{new string('0', decimalPlaces)}")} {MeasurementSuffix(measurement)}";
+    }
 
 		public override string ToString()
 		{

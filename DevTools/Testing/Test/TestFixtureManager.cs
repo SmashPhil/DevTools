@@ -117,6 +117,11 @@ public class TestFixtureManager : IDevToolWithMenu, ITestManager
 
   void ITestManager.OnTestRunnerEnd()
   {
+    if (Config.log is { report: not null })
+    {
+      GenGeneric.InvokeStaticGenericMethod(typeof(Test), Config.log.report, nameof(Test.GenerateReport),
+        args: [Config.log.folder, this]);
+    }
     if (DevHarmony.Args is { exitOnFinish: true })
     {
       bool anyFailed = TestFixtures.Any(group => group.Status == Status.Failed);
