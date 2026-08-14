@@ -5,6 +5,9 @@ using JetBrains.Annotations;
 
 namespace DevTools.Testing;
 
+/// <summary>
+/// Writes test log messages to a text file.
+/// </summary>
 [UsedImplicitly]
 internal sealed class TextLogWriter : ILogWriter
 {

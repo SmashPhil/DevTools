@@ -15,6 +15,11 @@ public interface ITestGroup : IDataRow<ExplorerColumn>
   ITestCase TestCase { get; }
 
   /// <summary>
+  /// Parent of this test group
+  /// </summary>
+  ITestGroup Parent { get; }
+
+  /// <summary>
   /// Gets the collection of child test groups contained within this group.
   /// </summary>
   IEnumerable<ITestGroup> Children { get; }

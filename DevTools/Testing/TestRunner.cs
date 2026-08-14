@@ -326,20 +326,24 @@ public sealed class TestRunner
       }
     }
 
-    DevLog.WriteLine();
-    DevLog.Write(
-      $"Tests Completed. ({report.Count(Status.Passed)} Passed, {report.Count(Status.Failed)} Failed, {report.Count(Status.Skipped)} Skipped)");
     testManager.OnTestRunnerEnd();
     yield break;
 
     static void ResetAll(IEnumerable<(ITestFixture, List<ITestFunction>)> tests)
     {
-      foreach ((ITestFixture fixture, List<ITestFunction> functions) in tests)
+      foreach ((_, List<ITestFunction> functions) in tests)
       {
-        Test.GetEntry(fixture).Reset();
         foreach (ITestFunction function in functions)
         {
-          Test.GetEntry(function).Reset();
+          ITestGroup group = Test.GetEntry(function);
+          group.Reset();
+          ITestGroup parent = group.Parent;
+          while (parent != null)
+          {
+            parent.Reset();
+            Assert.AreNotEqual(parent, parent.Parent);
+            parent = parent.Parent;
+          }
         }
       }
     }

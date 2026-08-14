@@ -7,6 +7,9 @@ using Verse;
 
 namespace DevTools.Testing;
 
+/// <summary>
+/// Provides logging for test execution using the configured <see cref="ILogWriter"/>.
+/// </summary>
 [PublicAPI]
 public class Logger : IDisposable
 {
@@ -92,7 +95,7 @@ public class Logger : IDisposable
       writerMutex.Dispose();
       writerMutex = null;
     }
-    
+
     try
     {
       if (IsOwner)
@@ -124,6 +127,9 @@ public class Logger : IDisposable
     }
   }
 
+  /// <summary>
+  /// Provides settings for test logging and report generation.
+  /// </summary>
   [PublicAPI]
   public class Config
   {
@@ -132,13 +138,30 @@ public class Logger : IDisposable
     private const long MegaByteConversion = 1024 * 1024;
     public const long DefaultFileLimit = 10 * MegaByteConversion;
 
+    /// <summary>
+    /// Maximum log file size in bytes before messages are discarded.
+    /// </summary>
     public long maxFileSize = 10 * MegaByteConversion; // 10 mb
+
+    /// <summary>
+    /// Enable verbose log messages.
+    /// </summary>
     public bool verboseLogging = true;
-    public bool shareLogFile = true;
+
+    /// <summary>
+    /// Directory where test logs and reports are generated.
+    /// </summary>
     [LoadAlias("filePath")]
     public string folder = Application.persistentDataPath;
 
+    /// <summary>
+    /// Type of <see cref="ILogWriter"/> used for test logging.
+    /// </summary>
     public Type writer = typeof(TextLogWriter);
+
+    /// <summary>
+    /// Type of <see cref="ITestReport"/> used to generate completed test results.
+    /// </summary>
     public Type report;
 
     public string FullPath => Path.Combine(folder, LogFileName);

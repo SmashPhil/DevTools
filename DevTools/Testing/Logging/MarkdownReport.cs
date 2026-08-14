@@ -8,10 +8,13 @@ using JetBrains.Annotations;
 
 namespace DevTools.Testing;
 
+/// <summary>
+/// Generates a Markdown report for test results.
+/// </summary>
 [UsedImplicitly]
 internal sealed class MarkdownReport : ITestReport
 {
-  private const string FileName = "report.md";
+  private const string FileName = "test-report.md";
 
   private StreamWriter writer;
 

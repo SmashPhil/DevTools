@@ -268,7 +268,9 @@ public static class Test
     {
       CurrentGroup.End();
       // Use interface property for restricted setter where status only elevates, never overwrites.
-      ((ITestGroup)CurrentGroup).Status = Status.Passed;
+      ((ITestGroup)CurrentGroup).Status = CurrentGroup.Children.Any() ?
+        CurrentGroup.Children.Min(child => child.Status) :
+        Status.Passed;
       CurrentGroup = dataStack.Count > 0 ? dataStack.Pop() : null;
     }
   }
@@ -335,7 +337,17 @@ public static class Test
     {
       foreach (TestData group in moduleData.Values)
       {
+        ResetRecursive(group);
+      }
+      return;
+
+      static void ResetRecursive(ITestGroup group)
+      {
         group.Reset();
+        foreach (ITestGroup child in group.Children)
+        {
+          ResetRecursive(child);
+        }
       }
     }
   }
@@ -343,6 +355,7 @@ public static class Test
   [DebuggerDisplay("Label = {Label}")]
   private sealed class TestData : ITestGroup
   {
+    private Status status = Status.NotRun;
     private readonly Stopwatch stopwatch = new();
     private readonly List<TestData> children = [];
 
@@ -366,7 +379,7 @@ public static class Test
 
     public ITestCase TestCase { get; }
 
-    private ITestGroup Parent { get; set; }
+    public ITestGroup Parent { get; private set; }
 
     public IEnumerable<ITestGroup> Children => children;
 
@@ -399,17 +412,16 @@ public static class Test
     {
       get
       {
-        return TestCase?.Status ?? field;
+        return TestCase?.Status ?? status;
       }
       set
       {
         // Interface setter implementation only accepts status 'elevations' from test runner,
         // allowing test failures to persist for a parent.
-        field = value;
-        TestCase?.Status = field;
-        Parent?.Status = field;
+        status = value;
+        TestCase?.Status = status;
       }
-    } = Status.NotRun;
+    }
 
     Status ITestGroup.Status
     {
@@ -420,6 +432,7 @@ public static class Test
           return;
 
         Status = value;
+        Parent?.Status = status;
       }
     }
 
@@ -507,10 +520,6 @@ public static class Test
       FailMessage = null;
       Exception = null;
       StackTrace = null;
-      foreach (TestData entry in children)
-      {
-        entry.Reset();
-      }
     }
 
     void IDataRow<ExplorerColumn>.Draw(Rect rect, ExplorerColumn column)
