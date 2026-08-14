@@ -19,6 +19,7 @@ namespace DevTools.Benchmarking;
 /// expensive than a single method call. This should not be used for 
 /// micro-benchmarking as results will not be accurate.
 /// </remarks>
+[PublicAPI]
 public static class Benchmark
 {
 	private static void ShowWarnings()

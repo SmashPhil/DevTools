@@ -1,11 +1,13 @@
 ﻿using System;
+using JetBrains.Annotations;
 
 namespace DevTools.Benchmarking;
 
 /// <summary>
-/// Marks a field or property as the context object for the benchmark class.
+/// Marks a static field or property as the context supplied to benchmark methods.
 /// </summary>
-/// <remarks>Use for specifying a specific context object, otherwise a default object will be initialized.</remarks>
+/// <remarks>A default context is used when no compatible context member is specified.</remarks>
+[PublicAPI]
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
 public class ContextAttribute : Attribute
 {

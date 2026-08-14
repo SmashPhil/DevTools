@@ -3,7 +3,10 @@ using JetBrains.Annotations;
 
 namespace DevTools.Benchmarking;
 
-[UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+/// <summary>
+/// Marks a method as a benchmark.
+/// </summary>
+[PublicAPI]
 [AttributeUsage(AttributeTargets.Method)]
 public class BenchmarkAttribute : Attribute
 {
