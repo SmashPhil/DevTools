@@ -31,6 +31,9 @@ public sealed class TestRunner
   private readonly List<TestAction> preTestActions = [];
   private readonly List<TestAction> postTestActions = [];
 
+  private Map currentMap;
+  private TransitionState state = TransitionState.Idle;
+
   /// <summary>
   /// Event for runner state changes.
   /// <para/>
@@ -190,7 +193,8 @@ public sealed class TestRunner
         FixtureGameSettings fxtSettings = new(instance);
         // Scene change for test type
         bool hasSaveFile = !fixture.SaveFile.NullOrEmpty();
-        if (currentTestType != fixture.TestType || hasSaveFile || fxtSettings.NeedsReload || restoreEnvironment)
+        bool needsRegen = fxtSettings.NeedsReload || restoreEnvironment;
+        if (currentTestType != fixture.TestType || hasSaveFile || needsRegen)
         {
           currentTestType = fixture.TestType;
           if (hasSaveFile)
@@ -207,6 +211,7 @@ public sealed class TestRunner
             yield return ChangeSceneRoutine(currentTestType, fixture, fxtSettings);
           }
         }
+
         // Restore default test environment if this fixture loaded a save or has custom game settings.
         restoreEnvironment = hasSaveFile || fxtSettings.NeedsReload;
 
@@ -218,12 +223,21 @@ public sealed class TestRunner
             using Test.Scope fns = new(function);
             Test.Current.Status = Status.Skipped;
           }
-
           continue;
         }
 
         try
         {
+          if (currentTestType == TestType.Playing)
+          {
+            Assert.IsNotNull(currentMap);
+            if (Find.CurrentMap != currentMap)
+            {
+              Log.Warning("CurrentMap does not match map TestRunner is tracking. " +
+                          "Tests may fail if camera is focused elsewhere.");
+            }
+            CameraJumper.TryJump(currentMap.Center, currentMap, mode: CameraJumper.MovementMode.Cut);
+          }
           if (!RunPreTestActions(fixture))
           {
             Test.Fail($"Failed pre-test actions for {fixture.Name}!");
@@ -379,12 +393,12 @@ public sealed class TestRunner
     return result;
   }
 
-  private static IEnumerator LoadSaveRoutine(string saveFile)
+  private IEnumerator LoadSaveRoutine(string saveFile)
   {
     using GenStepWarningDisabler gswd = new();
     Assert.IsTrue(!saveFile.NullOrEmpty());
     GameDataSaveLoader.LoadGame(saveFile);
-    yield return WaitTillPlaying();
+    yield return WaitTillLoaded(ProgramState.Playing);
   }
 
   private IEnumerator ChangeSceneRoutine(TestType testType, ITestFixture fixture, FixtureGameSettings settings)
@@ -401,16 +415,27 @@ public sealed class TestRunner
         if (settings.NeedsReload)
         {
           // For post-game tests that require specific game generation settings and test at the main menu after exiting.
-          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
-            scenario: null, storyteller: null);
+          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings,
+            settings.mapGen ?? config.MapSettings, scenario: null, storyteller: null);
           yield return LoadMainMenu();
         }
         break;
       }
       case TestType.Playing:
       {
-        yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
-          settings.scenario, settings.storyteller);
+        bool mapGenOnly = settings.worldGen is null && settings.scenario is null && settings.storyteller is null &&
+                          settings.mapGen is not null;
+        if (mapGenOnly && Verse.Current.ProgramState == ProgramState.Playing)
+        {
+          // Map only regen
+          yield return GenerateMapRoutine(settings.mapGen);
+        }
+        else
+        {
+          // Full world regen
+          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
+            settings.scenario, settings.storyteller);
+        }
         break;
       }
       case TestType.PostGameExit:
@@ -426,40 +451,90 @@ public sealed class TestRunner
       default:
         throw new ArgumentException("Trying to execute disabled test type.");
     }
-    yield break;
+  }
 
-    static IEnumerator LoadMainMenu()
+  private IEnumerator LoadMainMenu()
+  {
+    if (Verse.Current.ProgramState != ProgramState.Entry)
     {
-      if (Verse.Current.ProgramState != ProgramState.Entry)
-      {
-        GenScene.GoToMainMenu();
-        while (Verse.Current.ProgramState != ProgramState.Entry || LongEventHandler.AnyEventNowOrWaiting)
-        {
-          yield return null;
-        }
-      }
-    }
-
-    static IEnumerator GenerateWorldRoutine(WorldGenerationSettings worldGenSettings,
-      MapGenerationSettings mapGenSettings, [CanBeNull] Scenario scenario, [CanBeNull] Storyteller storyteller)
-    {
-      using GenStepWarningDisabler gswd = new();
-      GenerateWorld(worldGenSettings, mapGenSettings, scenario, storyteller);
-      yield return WaitTillPlaying();
+      GenScene.GoToMainMenu();
+      yield return WaitTillLoaded(ProgramState.Entry);
     }
   }
 
-  private static IEnumerator WaitTillPlaying()
+  private IEnumerator GenerateWorldRoutine(WorldGenerationSettings worldGenSettings,
+    MapGenerationSettings mapGenSettings, [CanBeNull] Scenario scenario, [CanBeNull] Storyteller storyteller)
   {
-    while (Verse.Current.ProgramState == ProgramState.MapInitializing || LongEventHandler.AnyEventNowOrWaiting)
-    {
-      yield return null;
-    }
+    using GenStepWarningDisabler disabler = new();
+    GenerateWorld(worldGenSettings, mapGenSettings, scenario, storyteller);
+    yield return WaitTillLoaded(ProgramState.Playing);
+
     // Skip 1 extra frame to allow for game to execute its single tick on load
     yield return null;
+
+    currentMap = Find.CurrentMap ?? Find.Maps.FirstOrFallback();
+    if (currentMap == null)
+    {
+      Log.Warning("Failed to generate map after creating world.");
+      yield return GenerateMapRoutine(mapGenSettings);
+    }
+    else
+    {
+      if (!mapGenSettings.postGenerationActions.NullOrEmpty())
+      {
+        foreach (Action action in mapGenSettings.postGenerationActions)
+        {
+          action();
+        }
+      }
+      Verse.Current.Game.CurrentMap = currentMap;
+    }
   }
 
-  private static void GenerateWorld(WorldGenerationSettings worldGenSettings,
+  private IEnumerator GenerateMapRoutine(MapGenerationSettings mapGenSettings)
+  {
+    if (currentMap != null)
+    {
+      Verse.Current.Game.DeinitAndRemoveMap(currentMap, notifyPlayer: false);
+    }
+    using GenStepWarningDisabler disabler = new();
+    currentMap = GenerateMap(mapGenSettings);
+    yield return WaitTillLoaded(ProgramState.Playing);
+
+    // Skip 1 extra frame to allow for game to render single frame, otherwise gpu buffer keeps stacking frames.
+    yield return null;
+
+    Verse.Current.Game.CurrentMap = currentMap;
+
+    if (!mapGenSettings.postGenerationActions.NullOrEmpty())
+    {
+      foreach (Action action in mapGenSettings.postGenerationActions)
+      {
+        action();
+      }
+    }
+  }
+
+  private IEnumerator WaitTillLoaded(ProgramState programState)
+  {
+    state = TransitionState.Transitioning;
+    try
+    {
+      while (Verse.Current.ProgramState != programState || LongEventHandler.AnyEventNowOrWaiting)
+      {
+        if (state == TransitionState.Failed)
+          yield break;
+
+        yield return null;
+      }
+    }
+    finally
+    {
+      state = TransitionState.Idle;
+    }
+  }
+
+  private void GenerateWorld(WorldGenerationSettings worldGenSettings,
     MapGenerationSettings mapGenSettings, Scenario scenario = null, Storyteller storyteller = null)
   {
     LongEventHandler.QueueLongEvent(delegate
@@ -470,8 +545,60 @@ public sealed class TestRunner
       {
         Find.GameInitData.PrepForMapGen();
         Find.Scenario.PreMapGenerate();
-      }, "Play", "GeneratingMap", true, null);
-    }, "GeneratingMap", true, GameAndMapInitExceptionHandlers.ErrorWhileGeneratingMap);
+      }, "Play", "GeneratingMap", doAsynchronously: true, exceptionHandler: FailTestWhileTransitioning);
+    }, "GeneratingMap", doAsynchronously: true, exceptionHandler: FailTestWhileTransitioning);
+  }
+
+  private Map GenerateMap(MapGenerationSettings mapGenSettings)
+  {
+    Map map = null;
+    try
+    {
+      World world = Find.World;
+      Assert.IsNotNull(world);
+      PlanetTile tile = GetFreeTile();
+      Assert.IsTrue(tile.Valid);
+      world.grid[tile].PrimaryBiome = mapGenSettings.biome ?? BiomeDefOf.TemperateForest;
+      IntVec3 size = new(mapGenSettings.size, 1, mapGenSettings.size);
+      Settlement settlement = (Settlement)WorldObjectMaker.MakeWorldObject(WorldObjectDefOf.Settlement);
+      settlement.Tile = tile;
+      settlement.SetFaction(mapGenSettings.Faction);
+      Find.WorldObjects.Add(settlement);
+      map = MapGenerator.GenerateMap(size, settlement,
+        mapGenSettings.mapGeneratorDef ?? MapGenerationSettings.Default.mapGeneratorDef,
+        mapGenSettings.extraGenStepDefs);
+      CameraJumper.TryJump(map.Center, map, mode: CameraJumper.MovementMode.Cut);
+    }
+    catch (Exception ex)
+    {
+      FailTestWhileTransitioning(ex);
+    }
+    return map;
+
+    static int GetFreeTile()
+    {
+      World world = Find.World;
+      WorldGrid grid = world.grid;
+      int nextBest = 0;
+      for (int i = 0; i < grid.TilesCount; i++)
+      {
+        if (!world.worldObjects.AnyMapParentAt(i))
+        {
+          return i;
+        }
+        if (!world.worldObjects.AnySettlementAt(i))
+        {
+          nextBest = i;
+        }
+      }
+      MapParent parent = world.worldObjects.MapParentAt(nextBest);
+      if (parent != null)
+      {
+        Verse.Current.Game.DeinitAndRemoveMap(parent.Map, notifyPlayer: false);
+        parent.Destroy();
+      }
+      return nextBest;
+    }
   }
 
   private static void InitGame(WorldGenerationSettings worldGenSettings,
@@ -479,7 +606,15 @@ public sealed class TestRunner
   {
     MemoryUtility.ClearAllMapsAndWorld();
     Game game = new();
-    GameInitData gameInitData = new();
+    GameInitData gameInitData = new()
+    {
+      startingSeason = worldGenSettings.startingSeason,
+      startingPawnsRequired = worldGenSettings.startingPawnsRequired,
+      startingXenotypesRequired = worldGenSettings.startingXenotypesRequired,
+      startingMutantsRequired = worldGenSettings.startingMutantsRequired,
+      allowedDevelopmentalStages = worldGenSettings.allowedDevelopmentalStages,
+      startingSkillsRequired = worldGenSettings.startingSkillsRequired
+    };
 
     if (mapGenSettings != null)
     {
@@ -505,6 +640,21 @@ public sealed class TestRunner
     }
 
     Find.Scenario.PostIdeoChosen();
+  }
+
+  private void FailTestWhileTransitioning(Exception ex)
+  {
+    Log.Error("ErrorWhileGeneratingMap".Translate());
+    Test.Fail(ex);
+    Scribe.ForceStop();
+    state = TransitionState.Failed;
+  }
+
+  private enum TransitionState
+  {
+    Idle,
+    Transitioning,
+    Failed
   }
 
   private readonly struct TestEnabler : IDisposable
