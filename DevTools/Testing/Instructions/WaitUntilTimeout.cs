@@ -1,30 +1,34 @@
 using System;
+using JetBrains.Annotations;
 using UnityEngine;
 using Verse;
 
-namespace DevTools.Testing.Instructions;
+namespace DevTools.Testing;
 
-public class WaitUntilTimeout : CustomYieldInstruction
+[PublicAPI]
+public class WaitUntilTrue : CustomYieldInstruction
 {
-    private readonly Func<bool> predicate;
-    private readonly TickManager tickManager;
-    private readonly int endTick;
-    
-    public override bool keepWaiting
-    {
-        get
-        {
-            var result = !predicate();
-            if(tickManager.TicksGame < endTick && result)
-                Test.Fail("Timed out");
-            return result;
-        }
-    }
+  private readonly Func<bool> condition;
+  private readonly TickManager tickManager;
+  private readonly int endTick;
 
-    public WaitUntilTimeout(Func<bool> predicate, int ticks = 100)
+  public WaitUntilTrue(Func<bool> condition, int maxTicksToWait)
+  {
+    this.condition = condition;
+    tickManager = Find.TickManager;
+    endTick = tickManager.TicksGame + maxTicksToWait;
+  }
+
+  public override bool keepWaiting
+  {
+    get
     {
-        this.predicate = predicate;
-        tickManager = Find.TickManager;
-        endTick = tickManager.TicksGame + ticks;
+      if (tickManager.TicksGame > endTick)
+      {
+        Test.Fail("Timed out");
+        return false;
+      }
+      return !condition();
     }
+  }
 }

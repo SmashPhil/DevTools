@@ -1,10 +1,15 @@
+using JetBrains.Annotations;
 using RimWorld;
 using Verse;
 
-namespace DevTools.Testing.Instructions;
+namespace DevTools.Testing;
 
+[PublicAPI]
 public static class WaitExtensions
 {
-    public static WaitJob WaitJob(this Pawn p, JobDef expectedJob, int timeoutTicks = GenDate.TicksPerHour, WaitJobType waitJobType = WaitJobType.StartsAndFinishesJob) => 
-        new(p, expectedJob, timeoutTicks, waitJobType);
+  public static WaitJob WaitJob(this Pawn pawn, JobDef expectedJob, int timeoutTicks = GenDate.TicksPerHour,
+    WaitJobType waitJobType = WaitJobType.StartsAndFinishesJob)
+  {
+    return new WaitJob(pawn, expectedJob, timeoutTicks, waitJobType);
+  }
 }
