@@ -22,6 +22,7 @@ public sealed class WaitJob : CustomYieldInstruction
 
     private State state;
     private readonly int timeoutTick;
+    private readonly int startTick;
     private int originalJobId;
 
     private enum State
@@ -37,11 +38,12 @@ public sealed class WaitJob : CustomYieldInstruction
         this.pawn = pawn;
         this.expectedJob = expectedJob;
         this.waitJobType = waitJobType;
+        startTick = Find.TickManager.TicksGame;
 
         if (pawn.CurJob == null || pawn.CurJobDef != expectedJob)
         {
             state = State.WaitingForExpectedJob;
-            timeoutTick = Find.TickManager.TicksGame + timeoutTicks;
+            timeoutTick = startTick + timeoutTicks;
         }
         else
         {
@@ -60,7 +62,7 @@ public sealed class WaitJob : CustomYieldInstruction
                     if (Find.TickManager.TicksGame >= timeoutTick)
                     {
                         if(waitJobType != WaitJobType.DoesntStartJob)
-                            Test.Fail($"No job started after {timeoutTick - (timeoutTick - 100)} ticks");
+                            Test.Fail($"No job started after {timeoutTick - startTick} ticks");
                         else
                         {
                             state = State.Finished;
