@@ -6,13 +6,13 @@ using Verse;
 namespace DevTools.Testing;
 
 [PublicAPI]
-public class WaitUntilTrue : CustomYieldInstruction
+public class WaitUntilTimeout : CustomYieldInstruction
 {
   private readonly Func<bool> condition;
   private readonly TickManager tickManager;
   private readonly int endTick;
 
-  public WaitUntilTrue(Func<bool> condition, int maxTicksToWait)
+  public WaitUntilTimeout(Func<bool> condition, int maxTicksToWait)
   {
     this.condition = condition;
     tickManager = Find.TickManager;
