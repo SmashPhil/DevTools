@@ -16,6 +16,7 @@ internal static class CommandRunner
   {
     const string PackageIdArg = "--pid";
 
+    const string Quickstart = "--quickstart";
     const string RunTestsArg = "--test";
     const string FilterArg = "--filter";
     const string WhereArg = "--where";
@@ -73,6 +74,11 @@ internal static class CommandRunner
           if (i + 1 < args.Length)
             result.Expression = args[++i];
           break;
+        case Quickstart:
+          type = ManagerType.Quickstart;
+          if (i + 1 < args.Length)
+              result.quickstart = args[++i];
+          break;
         case ExitAtEndArg or ExitAtEndShort:
           result.exitOnFinish = true;
           break;
@@ -111,6 +117,7 @@ internal static class CommandRunner
       ManagerType.Unit => DevHarmony.GetDevTool<TestFixtureManager>(mod),
       ManagerType.Smoke => DevHarmony.GetDevTool<SmokeTestManager>(mod),
       ManagerType.Plan => DevHarmony.GetDevTool<TestPlanManager>(mod),
+      ManagerType.Quickstart => null,
       _ => throw new NotImplementedException(type.ToString())
     };
     if (testManager == null)
@@ -173,7 +180,15 @@ internal static class CommandRunner
     {
       testRunner.AddTestActions(testActions);
     }
-    testRunner.Run();
+    if (type == ManagerType.Quickstart)
+    {
+      var quickstarter = new Quickstarter(result.quickstart);
+      quickstarter.Run();
+    }
+    else
+    {
+      testRunner.Run();
+    }
     return result;
 
     static TestFilter LoadTestList(string filePath)
@@ -202,7 +217,8 @@ internal static class CommandRunner
   {
     Unit,
     Smoke,
-    Plan
+    Plan,
+    Quickstart
   }
 
   public record Result
@@ -212,6 +228,7 @@ internal static class CommandRunner
     public bool hideWindow;
     public bool exitOnFinish;
     public bool headless;
+    public string quickstart;
 
     public int? port;
     public string sessionId;

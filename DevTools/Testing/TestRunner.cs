@@ -95,7 +95,7 @@ public sealed class TestRunner
   {
     LongEventHandler.ExecuteWhenFinished(delegate
     {
-      // Only 1 test routine can be active at a time. Tests must run on the main thread due to 
+      // Only 1 test routine can be active at a time. Tests must run on the main thread due to
       // Unity's lack of thread safety. If multiple tests are ran at the same time, it would need
       // to be in a separate process.
       if (Active)
@@ -134,7 +134,7 @@ public sealed class TestRunner
     using Test.SessionScope session = new(testManager);
     using TestEnabler enabler = new(this);
 
-    // Running unit tests from command line will jump into this coroutine before Root.Start has a 
+    // Running unit tests from command line will jump into this coroutine before Root.Start has a
     // chance to run. Skip 1 frame so all Root fields have a chance to initialize.
     yield return null;
 
@@ -682,13 +682,13 @@ public sealed class TestRunner
     }
   }
 
-  private readonly struct FixtureGameSettings
+  internal readonly struct FixtureGameSettings
   {
     public readonly WorldGenerationSettings worldGen;
     public readonly Scenario scenario;
     public readonly Storyteller storyteller;
     public readonly MapGenerationSettings mapGen;
-    
+
     public FixtureGameSettings(object instance)
     {
       worldGen = (instance as IWorldGeneration)?.WorldGenerationSettings;
