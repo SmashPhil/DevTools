@@ -63,11 +63,9 @@ public sealed class WaitJob : CustomYieldInstruction
           {
             if (waitJobType != WaitJobType.DoesntStartJob)
               Test.Fail($"No job started after {timeoutTick - startTick} ticks");
-            else
-            {
-              state = State.Finished;
-              return false;
-            }
+
+            state = State.Finished;
+            return false;
           }
 
           if (pawn.CurJob == null || pawn.CurJobDef != expectedJob)
