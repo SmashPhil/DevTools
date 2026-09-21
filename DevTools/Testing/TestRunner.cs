@@ -187,7 +187,7 @@ public sealed class TestRunner
 
       using (new Test.Scope(fixture))
       {
-        using LogWatcher fxWatcher = new(testManager.Config);
+        using LogWatcher fxWatcher = new(testManager.Config, fixture);
 
         object instance = fixture.CreateInstance();
         FixtureGameSettings fxtSettings = new(instance);
@@ -262,7 +262,7 @@ public sealed class TestRunner
             do
             {
               using Test.Scope fns = new(function);
-              using LogWatcher fnWatcher = new(testManager.Config);
+              using LogWatcher fnWatcher = new(testManager.Config, function, fixture);
               if (++attempts > 1)
               {
                 DevLog.WriteVerbose("Retrying...");

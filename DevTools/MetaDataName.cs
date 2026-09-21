@@ -18,4 +18,6 @@ internal static class MetaDataName
   public const string ExecutionPriority = "ExecutionPriority";
   public const string LoadSave = "LoadSave";
   public const string RetryTest = "RetryTest";
+  public const string WarningsAllowed = "WarningsAllowed";
+  public const string ErrorsAllowed = "ErrorsAllowed";
 }
