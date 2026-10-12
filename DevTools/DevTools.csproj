@@ -1,129 +1,96 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<Authors>Smash Phil</Authors>
-		<Description>SDK for benchmarking and unit testing in RimWorld.</Description>
-		<Product>DevTools</Product>
-		<FileVersion>1.6.0</FileVersion>
-		<AssemblyVersion>1.6.0</AssemblyVersion>
+  <PropertyGroup>
+    <Authors>Smash Phil</Authors>
+    <Description>SDK for benchmarking and unit testing in RimWorld.</Description>
+    <Product>DevTools</Product>
+    <RootNamespace>DevTools</RootNamespace>
+    <AssemblyName>DevTools</AssemblyName>
 
-		<Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-		<Configurations>Debug;Unstable;Release;ReleaseTesting</Configurations>
-		<Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-		<ProjectGuid>{CBD9893C-47BE-405E-89F7-2342F47D26BC}</ProjectGuid>
-		<OutputType>Library</OutputType>
-		<AppDesignerFolder>Properties</AppDesignerFolder>
-		<RootNamespace>DevTools</RootNamespace>
-		<AssemblyName>DevTools</AssemblyName>
-		<TargetFramework>net48</TargetFramework>
-		<LangVersion>preview</LangVersion>
-		<FileAlignment>512</FileAlignment>
-		<Deterministic>true</Deterministic>
-		<OutDir>..\..\1.6\Assemblies\</OutDir>
-		<ManagedDirectory>..\..\..\..\RimWorldWin64_Data\Managed</ManagedDirectory>
-		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<WarningLevel>4</WarningLevel>
-		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-		<NoWarn>CS0649</NoWarn>
-		<DebugType>embedded</DebugType>
-	</PropertyGroup>
+    <OutDir>$(ModDir)\1.7\Assemblies\</OutDir>
+  </PropertyGroup>
 
-	<!-- Configurations -->
-	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-		<DebugSymbols>true</DebugSymbols>
-		<Optimize>false</Optimize>
-		<DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
-	</PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" />
 
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
-		<DebugSymbols>true</DebugSymbols>
-		<Optimize>true</Optimize>
-		<DefineConstants>TRACE;UNSTABLE;UNITY_ASSERTIONS</DefineConstants>
-	</PropertyGroup>
+    <Reference Include="Brutal.Glfw">
+      <HintPath>$(RefDir)\Brutal.Glfw.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
 
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<DebugSymbols>true</DebugSymbols>
-		<Optimize>true</Optimize>
-		<DefineConstants>TRACE;RELEASE</DefineConstants>
-	</PropertyGroup>
+    <Reference Include="Brutal.ImGui">
+      <HintPath>$(RefDir)\Brutal.ImGui.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
 
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseTesting|AnyCPU'">
-		<DebugSymbols>true</DebugSymbols>
-		<Optimize>true</Optimize>
-		<DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS</DefineConstants>
-	</PropertyGroup>
+    <Reference Include="Brutal.Core.Common">
+      <HintPath>$(RefDir)\Brutal.Core.Common.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
 
-	<ItemGroup>
-	  <Compile Remove="Properties\**" />
-	  <EmbeddedResource Remove="Properties\**" />
-	  <None Remove="Properties\**" />
-	</ItemGroup>
+    <Reference Include="Brutal.Core.Numerics">
+      <HintPath>$(RefDir)\Brutal.Core.Numerics.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
 
-	<!-- Dependencies -->
-	<ItemGroup>
-		<PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
-		<PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" />
+    <Reference Include="Brutal.Vulkan">
+      <HintPath>$(RefDir)\Brutal.Vulkan.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
 
-		<!--
-        <Reference Include="Assembly-CSharp">
-            <HintPath>$(ManagedDirectory)\Assembly-CSharp.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="mscorlib">
-            <HintPath>$(ManagedDirectory)\mscorlib.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="System">
-            <HintPath>$(ManagedDirectory)\System.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="System.Core">
-            <HintPath>$(ManagedDirectory)\System.Core.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="System.Data">
-            <HintPath>$(ManagedDirectory)\System.Data.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="System.Runtime">
-            <HintPath>$(ManagedDirectory)\System.Runtime.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="System.Runtime.Serialization">
-            <HintPath>$(ManagedDirectory)\System.Runtime.Serialization.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="System.Xml">
-            <HintPath>$(ManagedDirectory)\System.Xml.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine.CoreModule">
-            <HintPath>$(ManagedDirectory)\UnityEngine.CoreModule.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine.ImageConversionModule">
-            <HintPath>$(ManagedDirectory)\UnityEngine.ImageConversionModule.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine.IMGUIModule">
-            <HintPath>$(ManagedDirectory)\UnityEngine.IMGUIModule.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine.InputLegacyModule">
-            <HintPath>$(ManagedDirectory)\UnityEngine.InputLegacyModule.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine.TextRenderingModule">
-            <HintPath>$(ManagedDirectory)\UnityEngine.TextRenderingModule.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        -->
-	</ItemGroup>
-	<ItemGroup>
-		<EmbeddedResource Include="Images/Icon_TestPassed.png" />
-		<EmbeddedResource Include="Images/Icon_TestFailed.png" />
-		<EmbeddedResource Include="Images/Icon_TestRunning.png" />
-		<EmbeddedResource Include="Images/Icon_TestCanceled.png" />
-		<EmbeddedResource Include="Images/Icon_TestNotRan.png" />
-	</ItemGroup>
+    <Reference Include="Brutal.Vulkan.Abstractions">
+      <HintPath>$(RefDir)\Brutal.Vulkan.Abstractions.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseKrafsPackageRef)' == 'true' AND '$(AnalyzerProject)' != 'true'">
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.*" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseKrafsPackageRef)' != 'true' AND '$(AnalyzerProject)' != 'true'">
+    <Reference Include="System">
+      <HintPath>$(RefDir)\System.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Xml">
+      <HintPath>$(RefDir)\System.Xml.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Xml.Linq">
+      <HintPath>$(RefDir)\System.Xml.Linq.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="mscorlib">
+      <HintPath>$(RefDir)\mscorlib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityStubs">
+      <HintPath>$(RefDir)\UnityStubs.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(RefDir)\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Waylith">
+      <HintPath>$(RefDir)\Waylith.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Waylith.UnityCompat">
+      <HintPath>$(RefDir)\Waylith.UnityCompat.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Images/Icon_TestPassed.png" />
+    <EmbeddedResource Include="Images/Icon_TestFailed.png" />
+    <EmbeddedResource Include="Images/Icon_TestRunning.png" />
+    <EmbeddedResource Include="Images/Icon_TestCanceled.png" />
+    <EmbeddedResource Include="Images/Icon_TestNotRan.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Generated\" />
+  </ItemGroup>
 </Project>

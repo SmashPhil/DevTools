@@ -127,7 +127,7 @@ public static class Expect
   }
 
   [DebuggerHidden]
-  public static T Throws<T>(Action action, string message = null) where T : Exception
+  public static T Throws<T>([InstantHandle] Action action, string message = null) where T : Exception
   {
     T exception = null;
     try
@@ -142,6 +142,22 @@ public static class Expect
     return exception;
   }
 
+  [DebuggerHidden]
+  public static void DoesNotThrow([InstantHandle] Action action, string message = null)
+  {
+    Exception exception = null;
+    try
+    {
+      action();
+    }
+    catch (Exception ex)
+    {
+      exception = ex;
+    }
+    Signal(exception == null, nameof(DoesNotThrow), message);
+  }
+
+  // TODO - Change to caller name attribute
   private static void Signal(bool result, string context, string label,
     string failureMessage = null)
   {

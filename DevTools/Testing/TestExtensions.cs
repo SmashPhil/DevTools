@@ -60,8 +60,8 @@ public static class TestExtensions
       reason = null;
       if (method.ReturnType != typeof(void))
       {
-        if (method.HasAttribute<SetUpAttribute>() ||
-            method.HasAttribute<TearDownAttribute>())
+        if (method.HasAttribute<SetUpAttribute>() || method.HasAttribute<TearDownAttribute>() ||
+            method.HasAttribute<OneTimeSetUpAttribute>() || method.HasAttribute<OneTimeTearDownAttribute>())
         {
           reason = "Return type must be void.";
           return false;

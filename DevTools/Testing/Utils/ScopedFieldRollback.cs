@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
+using JetBrains.Annotations;
 using UnityEngine.Assertions;
 
 namespace DevTools.Testing;
@@ -11,7 +12,8 @@ namespace DevTools.Testing;
 /// </summary>
 /// <typeparam name="T">The type of the object containing the field.</typeparam>
 /// <typeparam name="F">The type of the field to override.</typeparam>
-public readonly struct ScopedReferenceRollback<T, F> : IDisposable where T : class
+[PublicAPI]
+public readonly struct ScopedFieldRollback<T, F> : IDisposable where T : class
 {
   private static readonly Dictionary<FieldInfo, AccessTools.FieldRef<T, F>> FieldRefsByType = [];
 
@@ -25,7 +27,7 @@ public readonly struct ScopedReferenceRollback<T, F> : IDisposable where T : cla
   /// </summary>
   /// <param name="instance">The target object whose field will be overridden.</param>
   /// <param name="name">The name of the field to capture and later restore.</param>
-  public ScopedReferenceRollback(T instance, string name)
+  public ScopedFieldRollback(T instance, string name)
   {
     this.instance = instance;
     this.fieldRef = GetFieldRef(typeof(T), name);
@@ -40,7 +42,7 @@ public readonly struct ScopedReferenceRollback<T, F> : IDisposable where T : cla
   /// <param name="instance">The target object whose field will be overridden.</param>
   /// <param name="name">The name of the field to capture and later restore.</param>
   /// <param name="newValue">The temporary value to assign to the field.</param>
-  public ScopedReferenceRollback(T instance, string name, F newValue) : this(instance, name)
+  public ScopedFieldRollback(T instance, string name, F newValue) : this(instance, name)
   {
     fieldRef(instance: instance) = newValue;
   }

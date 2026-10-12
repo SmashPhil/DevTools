@@ -176,9 +176,6 @@ public static class Benchmark
 
 		IntPtr noOpPtr = (IntPtr)(delegate*<ref T, R>)&NoOp;
 
-		// Warmup
-		DeadCodeHelper.KeepAliveReadOnly<R>(default);
-
 		var harness = TestHarnessWithContext<T>.Create<R>(funcPtr, UnrollFactor);
 		var noOpHarness = TestHarnessWithContext<T>.Create<R>(noOpPtr, UnrollFactor);
 

@@ -22,8 +22,8 @@ public class TestFixtureManager : IDevToolWithMenu, ITestManager
 {
   private const string ManagerName = "Test Explorer";
 
-  // Debugging only
-  internal static readonly bool BreakOnTestFailure;
+  // TODO - expose toggle to config, cli, and/or test explorer
+  internal static readonly bool BreakOnTestFailure = false;
 
   private ModContentPack mod;
   private readonly Dictionary<Assembly, ITestModule> modules = [];
@@ -73,15 +73,15 @@ public class TestFixtureManager : IDevToolWithMenu, ITestManager
       return false;
     }
 
-    foreach (TestFixture testGroup in TestExtensions.CreateAllFixtures(CreateFixture, type, constructors[0]))
+    foreach (TestFixture fixture in TestExtensions.CreateAllFixtures(CreateFixture, type, constructors[0]))
     {
-      string key = $"{type.Namespace}.{testGroup.Name}";
-      if (testGroup.Args.Length > 0)
+      string key = $"{type.Namespace}.{fixture.Name}";
+      if (fixture.Args.Length > 0)
       {
-        key += $"({string.Join(',', testGroup.Args)})";
+        key += $"({string.Join(',', fixture.Args)})";
       }
-      testFixtures.TryAdd(key, testGroup);
-      testGroup.AddFromType(type);
+      testFixtures.TryAdd(key, fixture);
+      fixture.AddFromType(type);
     }
     return true;
 
@@ -103,6 +103,7 @@ public class TestFixtureManager : IDevToolWithMenu, ITestManager
       return false;
 
     Test.Discover(this);
+    this.SaveMetaData();
     return true;
   }
 

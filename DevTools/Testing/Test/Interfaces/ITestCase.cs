@@ -8,7 +8,12 @@ namespace DevTools.Testing;
 [PublicAPI]
 public interface ITestCase
 {
-	/// <summary>
+  /// <summary>
+  /// Unique identifier used for test selection when running tests via CLI or adaptor.
+  /// </summary>
+  string Key { get; }
+
+  /// <summary>
 	/// Test name shown in test explorer
 	/// </summary>
 	string Name { get; }

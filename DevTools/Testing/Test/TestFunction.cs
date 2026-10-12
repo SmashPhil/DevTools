@@ -32,6 +32,8 @@ internal class TestFunction : ITestFunction
 
   public MethodInfo MethodInfo { get; }
 
+  public string Key => Args is { Length: > 0 } ? $"{Name}({string.Join(',', Args)})" : Name;
+
   public string Name => MethodInfo.Name;
 
   public object ExpectedResult { get; private set; }
@@ -72,6 +74,9 @@ internal class TestFunction : ITestFunction
   {
     Assert.AreEqual(MethodInfo.ReturnType, typeof(IEnumerator));
     IEnumerator enumerator = (IEnumerator)MethodInfo.Invoke(instance, Args);
+    if (enumerator == null)
+      yield break;
+
     while (true)
     {
       object current;

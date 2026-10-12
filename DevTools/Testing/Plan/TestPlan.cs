@@ -1,13 +1,12 @@
 ﻿using System.Collections.Generic;
-using JetBrains.Annotations;
 using Verse;
 
 namespace DevTools.Testing;
 
 internal class TestPlan
 {
-	public string name;
-	public List<TestPlanJob> jobs;
+	public string name = null;
+	public List<TestPlanJob> jobs = null;
 
 	public bool IsValid => !jobs.NullOrEmpty();
 
