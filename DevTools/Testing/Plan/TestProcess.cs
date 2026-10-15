@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -36,13 +37,18 @@ internal sealed class TestProcess
       }
       ModsConfig.SaveFromList(job.loadWithMods);
     }
-    string fileName = Environment.GetCommandLineArgs()[0];
+    string fileName = Environment.ProcessPath;
+    if (fileName == null || !File.Exists(fileName))
+      throw new InvalidOperationException("No process path available, test process must launch from within RimWorld.");
+
     StringBuilder claBuilder = new();
     claBuilder.Append($"--pid \"{mod.PackageId}\" -e");
     if (!job.commandLineArgs.NullOrEmpty())
     {
       claBuilder.Append($" {job.commandLineArgs}");
     }
+    // Current running process will have lock on texture cache files, which will throw an error at runtime.
+    claBuilder.Append(" -ColdBoot");
 
     process = new Process();
     process.StartInfo.FileName = fileName;
