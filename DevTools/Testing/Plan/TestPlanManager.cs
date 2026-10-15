@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -88,6 +87,11 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
     return plans;
   }
 
+  public TestPlan FindPlan(string name)
+  {
+    return testPlans.FirstOrDefault(testPlan => testPlan.name.EqualsIgnoreCase(name));
+  }
+
   void ITestManager.OnTestRunnerStart()
   {
     modListToRestore.Clear();
@@ -105,39 +109,10 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
     if (DevHarmony.Args is { exitOnFinish: true })
     {
       bool anyFailed = TestFixtures.Any(group => group.Status == Status.Failed);
-      DevLog.Write($"Test runner finished. Result: {(anyFailed ? "Failed" : "Passed")}");
       Application.Quit(anyFailed ? 1 : 0);
       return;
     }
     OpenMenu();
-  }
-
-  [PublicAPI]
-  public void Run(string name)
-  {
-    TestPlan plan = testPlans.FirstOrDefault(testPlan => testPlan.name.EqualsIgnoreCase(name));
-    if (plan is null)
-    {
-      Log.Error($"Unable to locate TestPlan named {name}");
-      return;
-    }
-    Run(plan);
-  }
-
-  [PublicAPI]
-  public void Run(TestPlan testPlan)
-  {
-    new TestRunner(this, TestFilter).Run();
-    LongEventHandler.ExecuteWhenFinished(delegate { CoroutineObject.Instance.StartCoroutine(OpenMenuRoutine()); });
-    return;
-
-    IEnumerable<(ITestFixture, List<ITestFunction>)> TestFilter(ITestManager testManager)
-    {
-      foreach (ITestFixture fixture in testPlan.Fixtures)
-      {
-        yield return (fixture, fixture.TestFunctions.ToList());
-      }
-    }
   }
 
   [PublicAPI]
@@ -146,17 +121,12 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
     List<FloatMenuOption> options = [];
     foreach (TestPlan plan in testPlans)
     {
-      options.Add(new FloatMenuOption(plan.name, delegate { Run(plan); }));
+      options.Add(new FloatMenuOption(plan.name, delegate
+      {
+        this.GetRunnerWith(plan.Filter).Run();
+      }));
     }
     Find.WindowStack.Add(new FloatMenu(options));
-  }
-
-  private IEnumerator OpenMenuRoutine()
-  {
-    while (Current.ProgramState is not ProgramState.Entry || Find.WindowStack is null)
-      yield return null;
-
-    OpenMenu();
   }
 
   public void OpenMenu()

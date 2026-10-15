@@ -91,4 +91,9 @@ internal class TestReport
         break;
     }
   }
+
+  public override string ToString()
+  {
+    return $"{failed} Failed, {passed} Passed{(skipped > 0 ? $", {skipped} Skipped." : "")}";
+  }
 }

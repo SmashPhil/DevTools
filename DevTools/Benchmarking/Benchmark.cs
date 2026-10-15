@@ -244,34 +244,27 @@ public static class Benchmark
 		private readonly int decimalPlaces;
 
 		private readonly Measurement measurement;
-		private readonly int samples;
-		private readonly int partitions;
-
-		private readonly double total;
-		private readonly double mean;
-		private readonly double median;
-		private readonly double stdDev;
 
 		public Result(long[] ticks, int samples,
 			Measurement measurement = Measurement.Auto,
 			int decimalPlaces = 4)
 		{
 			this.decimalPlaces = decimalPlaces;
-			this.samples = samples;
-			this.partitions = ticks.Length;
+			Samples = samples;
+			Partitions = ticks.Length;
 
-			total = ticks.Sum();
+			Total = ticks.Sum();
 
 			int callsPerPartition = samples / ticks.Length;
-			mean = ticks.Mean() / callsPerPartition;
-			median = ticks.Median() / callsPerPartition;
-			stdDev = ticks.StdDev() / callsPerPartition;
+			Mean = ticks.Mean() / callsPerPartition;
+			Median = ticks.Median() / callsPerPartition;
+			StdDev = ticks.StdDev() / callsPerPartition;
 
 			this.measurement = measurement == Measurement.Auto ? PreferredMeasurement() : measurement;
-			total = Converted(total, this.measurement);
-			mean = Converted(mean, this.measurement);
-			median = Converted(median, this.measurement);
-			stdDev = Converted(stdDev, this.measurement);
+			Total = Converted(Total, this.measurement);
+			Mean = Converted(Mean, this.measurement);
+			Median = Converted(Median, this.measurement);
+			StdDev = Converted(StdDev, this.measurement);
 		}
 
 		public Result(Stopwatch stopwatch, int iterations, Measurement measurement = Measurement.Auto,
@@ -280,19 +273,21 @@ public static class Benchmark
 		{
 		}
 
-		public int Samples => samples;
+		public int Samples { get; }
 
-		public int Partitions => partitions;
+    public int Partitions { get; }
 
-		public double Total => total;
+    public double Total { get; }
 
-		public double Mean => mean;
+    public double Mean { get; }
 
-		public double Median => median;
+    public double Median { get; }
 
-		public double StdDev => stdDev;
+    public double StdDev { get; }
 
-		public string Formatted(double value)
+    public long ElapsedMilliseconds => (long)ToMilliseconds(Total);
+
+    public string Formatted(double value)
     {
       return
         $"{value.ToString($"0.{new string('0', decimalPlaces)}")} {MeasurementSuffix(measurement)}";
@@ -300,8 +295,7 @@ public static class Benchmark
 
 		public override string ToString()
 		{
-			return
-				$"Sample={samples} | Total={Formatted(Total)} | Mean={Formatted(Mean)}";
+			return $"Sample={Samples} | Total={Formatted(Total)} | Mean={Formatted(Mean)}";
 		}
 
 		private Measurement PreferredMeasurement()

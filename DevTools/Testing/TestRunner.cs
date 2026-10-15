@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using JetBrains.Annotations;
 using RimWorld;
 using RimWorld.Planet;
@@ -31,6 +32,8 @@ public sealed class TestRunner
   private readonly List<TestAction> preTestActions = [];
   private readonly List<TestAction> postTestActions = [];
 
+  private int tcpPort;
+  private string tcpSessionId;
   private Map currentMap;
   private TransitionState state = TransitionState.Idle;
 
@@ -110,6 +113,12 @@ public sealed class TestRunner
     postTestActions.Add(testAction);
   }
 
+  public void ConnectTcp(int port, string sessionId)
+  {
+    tcpPort = port;
+    tcpSessionId = sessionId;
+  }
+
   public void Run()
   {
     LongEventHandler.ExecuteWhenFinished(delegate
@@ -143,6 +152,10 @@ public sealed class TestRunner
 
   private IEnumerator TestRoutine(TestFilter filter)
   {
+    Stopwatch stopwatch = new();
+    using var tcp = tcpPort != 0 ? new TcpBridge(tcpPort, tcpSessionId, stopwatch) : null;
+    stopwatch.Start();
+
     ITestConfig config = testManager.Config;
     using ApplicationState appState = new();
 
@@ -294,6 +307,7 @@ public sealed class TestRunner
             } while (attempts <= maxRetries && function.Status is Status.Failed);
 
             report.Add(function);
+            tcp?.SendResult(function);
 
             if (ShouldStop(function))
               break;
@@ -339,7 +353,8 @@ public sealed class TestRunner
         yield return null;
       }
     }
-
+    stopwatch.Stop();
+    DevLog.Write($"Tests finished in {stopwatch.ElapsedMilliseconds} ms with {report}");
     testManager.OnTestRunnerEnd();
     yield break;
 

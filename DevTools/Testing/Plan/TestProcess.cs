@@ -38,7 +38,7 @@ internal sealed class TestProcess
     }
     string fileName = Environment.GetCommandLineArgs()[0];
     StringBuilder claBuilder = new();
-    claBuilder.Append($"--pid \"{mod.PackageId}\" -e"); // -batchmode
+    claBuilder.Append($"--pid \"{mod.PackageId}\" -e");
     if (!job.commandLineArgs.NullOrEmpty())
     {
       claBuilder.Append($" {job.commandLineArgs}");

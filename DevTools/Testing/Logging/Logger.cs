@@ -136,7 +136,6 @@ public class Logger : IDisposable
     public const string LogFileName = "Test.log";
 
     private const long MegaByteConversion = 1024 * 1024;
-    public const long DefaultFileLimit = 10 * MegaByteConversion;
 
     /// <summary>
     /// Maximum log file size in bytes before messages are discarded.

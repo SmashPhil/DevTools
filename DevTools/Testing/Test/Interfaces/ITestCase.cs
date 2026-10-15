@@ -9,9 +9,9 @@ namespace DevTools.Testing;
 public interface ITestCase
 {
   /// <summary>
-  /// Unique identifier used for test selection when running tests via CLI or adaptor.
+  /// Full test name including the namespace, type, function, and any args used for test construction.
   /// </summary>
-  string Key { get; }
+  string FullName { get; }
 
   /// <summary>
 	/// Test name shown in test explorer

@@ -47,13 +47,9 @@ public static class TestExtensions
     if (methodInfo.MissingRequiredMods())
       return;
 
-    foreach (ITestFunction function in CreateAllTests(CreateFunction, methodInfo))
-    {
-      methodList.Add(function);
-    }
+    TestGenerator generator = new(fixture, methodInfo, methodType);
+    methodList.AddRange(generator.GenerateAll());
     return;
-
-    ITestFunction CreateFunction() => new TestFunction(fixture, methodInfo, methodType);
 
     static bool MethodIsSafe(MethodInfo method, out string reason)
     {
@@ -144,10 +140,12 @@ public static class TestExtensions
       var defs = GenDefDatabase.GetAllDefsInDatabaseForDef(pinfo.ParameterType);
       foreach (Def def in defs)
       {
-        // Defs with no mod assigned are runtime defs that were incorrectly added, or are mock defs.
+        // Defs with no mod assigned are runtime defs that were incorrectly added, or mock defs.
         if (def.modContentPack is null)
           continue;
-        if (attribute.Filter != null && !(bool)attribute.Filter.Invoke(null, [def]))
+        // Invoked via reflection, the return value could be null or mistyped. Better to let the exception throw than
+        // fail this check silently.
+        if (attribute.Filter != null && !(bool)attribute.Filter.Invoke(null, [def])!)
           continue;
 
         if (allowedPackageIds == null ||
@@ -215,70 +213,6 @@ public static class TestExtensions
 
       fixture.Args = [.. arg];
       yield return fixture;
-    }
-  }
-
-  public static IEnumerable<T> CreateAllTests<T>(Func<T> factory, MethodInfo methodInfo)
-    where T : ITestFunction
-  {
-    if (SetUpTestCase(factory, methodInfo, out List<T> functions))
-    {
-      foreach (T function in functions)
-      {
-        if (!function.MetaData.Get<bool>(MetaDataName.Disabled))
-        {
-          yield return function;
-        }
-      }
-      yield break;
-    }
-    List<object[]> args = ExtractParameters(methodInfo);
-    if (args.Count == 0)
-    {
-      T function = factory();
-      function.MetaData.Load(methodInfo);
-      if (!function.MetaData.Get<bool>(MetaDataName.Disabled))
-      {
-        function.Args = [];
-        yield return function;
-      }
-      yield break;
-    }
-    foreach (object[] arg in args)
-    {
-      T function = factory();
-      function.MetaData.Load(methodInfo);
-      if (function.MetaData.Get<bool>(MetaDataName.Disabled))
-        continue;
-
-      function.Args = arg;
-      yield return function;
-    }
-    yield break;
-
-    static bool SetUpTestCase(Func<T> factory, MethodInfo methodInfo, out List<T> functions)
-    {
-      var attributes = methodInfo.GetCustomAttributes<TestCaseAttribute>().ToList();
-      if (attributes.Count > 0)
-      {
-        functions = [];
-        foreach (TestCaseAttribute attr in attributes)
-        {
-          if (attr.Arguments == null)
-          {
-            Log.Error($"Missing arguments for test case {methodInfo.Name}");
-            continue;
-          }
-          T function = factory();
-          function.MetaData.Load(methodInfo);
-          function.Args = [.. attr.Arguments];
-          function.ExpectedResult = attr.ExpectedResult;
-          functions.Add(function);
-        }
-        return true;
-      }
-      functions = null;
-      return false;
     }
   }
 }

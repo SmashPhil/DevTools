@@ -38,14 +38,7 @@ internal class TestFixture : ITestFixture
 
   object[] ITestCase.Args { get => Args; set => Args = value; }
 
-  public string Key
-  {
-    get
-    {
-      string name = $"{Type.Namespace}.{Name}";
-      return Args is { Length: > 0 } ? $"{name}({string.Join(',', Args)})" : name;
-    }
-  }
+  public virtual string FullName => Args is { Length: > 0 } ? $"{Type.FullName}({string.Join(',', Args)})" : Type.FullName;
 
   public virtual string Name { get; }
 

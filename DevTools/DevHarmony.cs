@@ -101,7 +101,7 @@ internal static class DevHarmony
 				break;
 		}
 
-		if (Args is { headless: true })
+		if (Args is { hideWindow: true })
 		{
 			BatchModeCompatibility.Enable();
 		}

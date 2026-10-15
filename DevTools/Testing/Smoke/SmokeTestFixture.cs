@@ -18,7 +18,7 @@ internal class SmokeTestFixture : ITestFixture
         Args = [];
     }
 
-    public string Key => Name;
+    public string FullName => Name;
 
     public string Name => TestType.ToString();
 

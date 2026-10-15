@@ -54,7 +54,7 @@ public class TestFixtureManager : IDevToolWithMenu, ITestManager
   public void OpenMenu()
   {
     testExplorer ??= new Dialog_TestExplorer(this);
-    Find.WindowStack.Add(testExplorer);
+    Find.WindowStack?.Add(testExplorer);
   }
 
   bool IDevTool.TryRegisterType(Type type)

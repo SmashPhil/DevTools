@@ -30,18 +30,16 @@ public static class Test
     return cache.TryGetValue(manager)?.AssemblyGroups;
   }
 
-  private static ITestGroup BeginGroup([NotNull] ITestFixture fixture)
+  private static void BeginGroup([NotNull] ITestFixture fixture)
   {
     TestData testGroup = CurrentCache.GetOrAdd(fixture);
     ActiveSession.Push(testGroup);
-    return testGroup;
   }
 
-  private static ITestGroup BeginGroup(ITestFunction function)
+  private static void BeginGroup(ITestFunction function)
   {
     TestData testGroup = CurrentCache.GetOrAdd(function);
     ActiveSession.Push(testGroup);
-    return testGroup;
   }
 
   private static void EndGroup()
@@ -118,7 +116,7 @@ public static class Test
 
   internal static void GenerateReport<T>(string path, ITestManager manager) where T: ITestReport
   {
-    ITestReport report = (ITestReport)Activator.CreateInstance(typeof(T));
+    ITestReport report = Activator.CreateInstance<T>();
     if (cache.TryGetValue(manager, out TestCache dataCache))
     {
       report.Tabulate(path, dataCache.AssemblyGroups.ToList());

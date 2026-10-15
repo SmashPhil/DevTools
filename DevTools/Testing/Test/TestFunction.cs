@@ -32,9 +32,9 @@ internal class TestFunction : ITestFunction
 
   public MethodInfo MethodInfo { get; }
 
-  public string Key => Args is { Length: > 0 } ? $"{Name}({string.Join(',', Args)})" : Name;
+  public string FullName => $"{Fixture.FullName}.{Name}";
 
-  public string Name => MethodInfo.Name;
+  public string Name => Args is { Length: > 0 } ? $"{MethodInfo.Name}({string.Join(',', Args)})" : MethodInfo.Name;
 
   public object ExpectedResult { get; private set; }
 

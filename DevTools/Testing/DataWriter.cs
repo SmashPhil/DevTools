@@ -26,7 +26,7 @@ internal sealed class TestManifest : IJsonSerializable
 
   public class TestMetaData
   {
-    public string Key { get; set; }
+    public string FullName { get; set; }
 
     public string FullyQualifiedName { get; set; }
 
