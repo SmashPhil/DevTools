@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" />
+    <PackageReference Include="Lib.Harmony.Ref" Version="2.4.3" />
 
     <Reference Include="Brutal.Glfw">
       <HintPath>$(RefDir)\Brutal.Glfw.dll</HintPath>
