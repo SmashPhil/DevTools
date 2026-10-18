@@ -9,5 +9,5 @@ internal static class DevToolTypes
 
   public const string Parameters = "DevTools.Testing.ParametersAttribute";
   public const string ParametersSource = "DevTools.Testing.ParametersSourceAttribute";
-  public const string DefParameters = "DevTools.Testing.DefParametersAttribute";
+  public const string DefsSource = "DevTools.Testing.DefsSourceAttribute";
 }

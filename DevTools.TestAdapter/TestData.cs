@@ -4,6 +4,7 @@ namespace DevTools.TestAdapter;
 
 internal sealed class TestData : IVersionable
 {
+  public string Assembly { get; set; }
   public string Schema { get; set; }
   public string Version { get; set; }
   public string[] ModList { get; set; }

@@ -12,13 +12,13 @@ namespace DevTools;
 [StaticConstructorOnStartup]
 internal static class DevHarmony
 {
-	private const string ModId = "DevTools";
+  private const string ModId = "DevTools";
 
-	private static readonly Dictionary<ModContentPack, List<IDevTool>> ModDevTools = [];
+  private static readonly Dictionary<ModContentPack, List<IDevTool>> ModDevTools = [];
 
 	public static CommandRunner.Result Args { get; private set; }
 
-	// NOTE - this should be initialized from SCOS so dev tools static constructors have access to Defs
+	// NOTE: Initialize from SCOS so dev tools static constructors have access to Defs
 	static DevHarmony()
 	{
 		Harmony.Patch(
@@ -29,20 +29,36 @@ internal static class DevHarmony
 		LoadTypes();
 	}
 
-	private static Harmony Harmony { get; } = new(ModId);
+  internal static Harmony Harmony { get; } = new(ModId);
+
+  public static T GetDevTool<T>(string packageId) where T : IDevTool
+  {
+    foreach ((ModContentPack mod, List<IDevTool> tools) in ModDevTools)
+    {
+      if (mod.PackageIdPlayerFacing == packageId)
+      {
+        foreach (IDevTool tool in tools)
+        {
+          if (tool is T result)
+            return result;
+        }
+      }
+    }
+    return default;
+  }
 
 	public static T GetDevTool<T>(ModContentPack mod) where T : IDevTool
-	{
-		if (!ModDevTools.TryGetValue(mod, out List<IDevTool> tools))
-			return default;
+  {
+    if (!ModDevTools.TryGetValue(mod, out List<IDevTool> tools))
+      return default;
 
-		foreach (IDevTool tool in tools)
-		{
-			if (tool is T result)
-				return result;
-		}
-		return default;
-	}
+    foreach (IDevTool tool in tools)
+    {
+      if (tool is T result)
+        return result;
+    }
+    return default;
+  }
 
 	private static T CreateDevTool<T>() where T : IDevTool, new()
 	{

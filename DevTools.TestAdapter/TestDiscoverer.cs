@@ -1,7 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Xml.Linq;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Adapter;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Logging;
@@ -10,49 +14,106 @@ using Mono.Cecil;
 namespace DevTools.TestAdapter;
 
 [FileExtension(".dll")]
-[DefaultExecutorUri(AdaptorInfo.ExecutorUri)]
+[DefaultExecutorUri(AdapterInfo.ExecutorUri)]
 public sealed class TestDiscoverer : ITestDiscoverer
 {
-  private const string TestCaseFile = "LoadedTestCases.json";
+  private const string TestCaseFile = "LoadedTestCases-{0}.json";
+  private const string ModsConfigFile = "ModsConfig.xml";
+  private const string MutexName = "DevToolsDiscoverer";
+
+  private readonly Mutex mutex = new(initiallyOwned: false, name: MutexName);
 
   void ITestDiscoverer.DiscoverTests(IEnumerable<string> sources,
     IDiscoveryContext discoveryContext, IMessageLogger logger, ITestCaseDiscoverySink discoverySink)
   {
-    AssemblyDefList defList = new(sources);
-    var data = DataLoader<TestData>.Load(TestCaseFile);
-    // TODO - Check for outdated / mismatched modlist
-    if (data != null)
+    RunSettings settings = new(discoveryContext.RunSettings);
+
+    foreach (string source in sources)
     {
-      LoadFromData(data, discoverySink);
-    }
-    else
-    {
-      LoadFromDefinitions(defList, discoverySink);
+      string sourceName = Path.GetFileNameWithoutExtension(source);
+      TestData data = FetchTestData(sourceName, settings);
+      if (data != null)
+      {
+        LoadFromData(data, discoverySink);
+      }
+      else
+      {
+        using var assemblyDef = AssemblyDefinition.ReadAssembly(source);
+        LoadFromDefinitions(source, assemblyDef, discoverySink);
+      }
     }
   }
 
-  private static void LoadFromDefinitions(AssemblyDefList defList, ITestCaseDiscoverySink discoverySink)
+  private TestData FetchTestData(string source, RunSettings settings)
   {
-    foreach ((string path, AssemblyDefinition def) assembly in defList.assemblies)
+    TestData data;
+    if (settings.AutoRecacheOnBuild)
     {
-      foreach (TypeDefinition type in GetTypes(assembly.def.MainModule.Types))
+      using (new MutexLock(mutex))
       {
-        if (!type.IsClass || !HasAttribute(type, DevToolTypes.TestFixture))
-          continue;
-
-        foreach (MethodDefinition method in type.Methods)
+        string fileName = string.Format(TestCaseFile, source);
+        data = DataLoader<TestData>.Load(fileName);
+        if (settings.AutoRecacheOnBuild && (data is null || OutOfDateCache(data)))
         {
-          // Cecil uses "/" for nested types, reflection uses "+"
-          string typeName = type.FullName.Replace('/', '+');
-          string qualifiedName = $"{typeName}.{method.Name}";
-          foreach (TestNames data in AddTestsFrom(method))
+          //Console.WriteLine("Running RimWorld to recache test list.");
+          //QuickBootGame(settings);
+          //data = DataLoader<TestData>.Load(TestCaseFile);
+        }
+      }
+    }
+    else
+    {
+      data = DataLoader<TestData>.Load(TestCaseFile);
+    }
+    return data;
+  }
+
+  private static bool OutOfDateCache(TestData data)
+  {
+    string modsConfigPath = Path.Combine(GameFilePaths.SaveDataFolderPath, ModsConfigFile);
+    FileInfo file = new(modsConfigPath);
+    if (file is not { Exists: true })
+    {
+      Console.Error.WriteLine($"Unable to find {ModsConfigFile} at {modsConfigPath}");
+      return false;
+    }
+
+    string xml = File.ReadAllText(file.FullName);
+    XElement root = XDocument.Parse(xml).Root;
+    bool isStale = root == null;
+    if (root != null)
+    {
+      string version = root.Element("version")?.Value;
+      isStale = version != data.Version;
+      List<string> mods = root.Element("activeMods")?.Elements("li").Select(node => node.Value).ToList();
+      isStale |= mods is null || data.ModList is null || mods.Count != data.ModList.Length;
+      if (!isStale && mods is { Count: > 0 })
+      {
+        isStale = !data.ModList.SequenceEqual(mods);
+      }
+    }
+    return isStale;
+  }
+
+  private static void LoadFromDefinitions(string path, AssemblyDefinition def, ITestCaseDiscoverySink discoverySink)
+  {
+    foreach (TypeDefinition type in GetTypes(def.MainModule.Types))
+    {
+      if (!type.IsClass || !HasAttribute(type, DevToolTypes.TestFixture))
+        continue;
+
+      foreach (MethodDefinition method in type.Methods)
+      {
+        // Cecil uses "/" for nested types, reflection uses "+"
+        string typeName = type.FullName.Replace('/', '+');
+        string qualifiedName = $"{typeName}.{method.Name}";
+        foreach (TestNames data in AddTestsFrom(method))
+        {
+          TestCase testCase = new($"{qualifiedName}{data.NameSuffix}", new Uri(AdapterInfo.ExecutorUri), path)
           {
-            TestCase testCase = new($"{qualifiedName}{data.NameSuffix}", new Uri(AdaptorInfo.ExecutorUri), assembly.path)
-            {
-              DisplayName = data.DisplayName
-            };
-            discoverySink.SendTestCase(testCase);
-          }
+            DisplayName = data.DisplayName
+          };
+          discoverySink.SendTestCase(testCase);
         }
       }
     }
@@ -62,7 +123,7 @@ public sealed class TestDiscoverer : ITestDiscoverer
   {
     foreach (var metaData in data.Tests)
     {
-      TestCase testCase = new(metaData.FullyQualifiedName, new Uri(AdaptorInfo.ExecutorUri), metaData.Source)
+      TestCase testCase = new(metaData.FullyQualifiedName, new Uri(AdapterInfo.ExecutorUri), metaData.Source)
       {
         DisplayName = metaData.FullName
       };
@@ -170,33 +231,26 @@ public sealed class TestDiscoverer : ITestDiscoverer
     return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "null";
   }
 
+  private static void QuickBootGame(RunSettings settings)
+  {
+    ProcessStartInfo startInfo = new()
+    {
+      FileName = settings.ExePath,
+      WorkingDirectory = Path.GetDirectoryName(settings.ExePath)!,
+      UseShellExecute = true,
+      CreateNoWindow = false,
+      WindowStyle = ProcessWindowStyle.Normal
+    };
+    startInfo.ArgumentList.Add($"--test-discovery={settings.PackageId}");
+    startInfo.ArgumentList.Add("-Headless");
+    using Process process = Process.Start(startInfo);
+    process?.WaitForExit();
+  }
+
   private readonly struct TestNames(string displayName, string nameSuffix)
   {
     public string NameSuffix { get; } = nameSuffix;
 
     public string DisplayName { get; } = displayName;
-  }
-
-  private class AssemblyDefList : IDisposable
-  {
-    public readonly List<(string path, AssemblyDefinition def)> assemblies = [];
-
-    public AssemblyDefList(IEnumerable<string> sources)
-    {
-      foreach (string path in sources)
-      {
-        var assembly = AssemblyDefinition.ReadAssembly(path);
-        assemblies.Add((path, assembly));
-      }
-    }
-
-    void IDisposable.Dispose()
-    {
-      foreach ((_, AssemblyDefinition def) in assemblies)
-      {
-        def.Dispose();
-      }
-      assemblies.Clear();
-    }
   }
 }

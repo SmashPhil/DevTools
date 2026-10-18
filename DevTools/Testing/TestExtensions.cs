@@ -17,7 +17,7 @@ public static class TestExtensions
   {
     return pinfo.GetCustomAttribute<ParametersSourceAttribute>() != null ||
            pinfo.GetCustomAttribute<ParametersAttribute>() != null ||
-           pinfo.GetCustomAttribute<DefParametersAttribute>() != null;
+           pinfo.GetCustomAttribute<DefsSourceAttribute>() != null;
   }
 
   public static object CreateTestClass(this ITestFixture fixture)
@@ -122,7 +122,7 @@ public static class TestExtensions
         args.Add([obj]);
       }
     }
-    else if (pinfo.GetCustomAttribute<DefParametersAttribute>() is { } defParamAttr)
+    else if (pinfo.GetCustomAttribute<DefsSourceAttribute>() is { } defParamAttr)
     {
       AddArgsFromDefParameter(defParamAttr);
     }
@@ -132,7 +132,7 @@ public static class TestExtensions
     }
     return args;
 
-    void AddArgsFromDefParameter(DefParametersAttribute attribute)
+    void AddArgsFromDefParameter(DefsSourceAttribute attribute)
     {
       HashSet<string> allowedPackageIds = !attribute.OnlyFromMods.NullOrEmpty() ?
           attribute.OnlyFromMods.ToHashSet() :

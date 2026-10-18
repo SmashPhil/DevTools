@@ -2,12 +2,10 @@
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using JetBrains.Annotations;
 using RimWorld;
 using UnityEngine;
 using Verse;
-using static UnityEngine.Scripting.GarbageCollector;
 
 namespace DevTools.Testing;
 
@@ -52,28 +50,37 @@ public static class Ext_TestManagers
     public void SaveMetaData()
     {
       const string SchemaVersion = "1.0.0";
-      Task.Run(async () =>
+      foreach (TestManifest manifest in GenerateManifests(manager))
       {
-        var manifest = GenerateManifest(manager);
-        await DataWriter<TestManifest>.SerializeAsync(manifest);
-      });
+        DataWriter<TestManifest>.Serialize(manifest);
+      }
       return;
 
-      static TestManifest GenerateManifest(ITestManager manager)
+      static IEnumerable<TestManifest> GenerateManifests(ITestManager manager)
       {
-        TestManifest manifest = new()
-        {
-          Schema = SchemaVersion,
-          Version = VersionControl.CurrentVersionString,
-          ModList = ModsConfig.ActiveModsInLoadOrder.Select(modMeta => modMeta.PackageIdNonUnique).ToArray(),
-          Assemblies = LoadedModManager.RunningModsListForReading
-            .SelectMany(modContent => modContent.assemblies.loadedAssemblies
-              .Select(asm => asm.FullName)).Order().ToArray(),
-          Tests = []
-        };
-      Dictionary<MemberInfo, int> caseNumbers = [];
+        Dictionary<string, TestManifest> manifestsByAsm = [];
+        Dictionary<MemberInfo, int> caseNumbers = [];
         foreach (ITestFixture fixture in manager.TestFixtures)
         {
+          string name = fixture.Type.Assembly.GetName().Name;
+          if (string.IsNullOrEmpty(name))
+            continue;
+
+          if (!manifestsByAsm.TryGetValue(name, out TestManifest manifest))
+          {
+            manifest = new TestManifest
+            {
+              Assembly = name,
+              Schema = SchemaVersion,
+              Version = VersionControl.CurrentVersionStringWithRev,
+              ModList = ModsConfig.ActiveModsInLoadOrder.Select(modMeta => modMeta.PackageIdNonUnique).ToArray(),
+              Assemblies = LoadedModManager.RunningModsListForReading
+                .SelectMany(modContent => modContent.assemblies.loadedAssemblies
+                  .Select(asm => asm.FullName)).Order().ToArray(),
+              Tests = []
+            };
+            manifestsByAsm[name] = manifest;
+          }
           foreach (ITestFunction function in fixture.TestFunctions)
           {
             string suffix = "";
@@ -91,8 +98,12 @@ public static class Ext_TestManagers
             });
           }
         }
-        manifest.Tests.SortBy(test => test.FullName);
-        return manifest;
+
+        foreach (TestManifest manifest in manifestsByAsm.Values)
+        {
+          manifest.Tests.SortBy(test => test.FullName);
+          yield return manifest;
+        }
       }
     }
 

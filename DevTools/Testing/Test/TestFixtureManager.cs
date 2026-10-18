@@ -103,7 +103,6 @@ public class TestFixtureManager : IDevToolWithMenu, ITestManager
       return false;
 
     Test.Discover(this);
-    this.SaveMetaData();
     return true;
   }
 

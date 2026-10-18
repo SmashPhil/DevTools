@@ -12,7 +12,7 @@ public sealed class MissingParameterSourceAnalyzer : DiagnosticAnalyzer
   private static readonly DiagnosticDescriptor Rule = new(
     DiagnosticId,
     "Test parameters require a source attribute",
-    "Parameter '{0}' must be marked with Parameters, ParametersSource, or DefParameters",
+    "Parameter '{0}' must be marked with Parameters, ParametersSource, or DefsSource",
     "Usage",
     DiagnosticSeverity.Error,
     isEnabledByDefault: true,
@@ -43,7 +43,7 @@ public sealed class MissingParameterSourceAnalyzer : DiagnosticAnalyzer
       [
         startContext.Compilation.GetTypeByMetadataName("DevTools.Testing.ParametersAttribute"),
         startContext.Compilation.GetTypeByMetadataName("DevTools.Testing.ParametersSourceAttribute"),
-        startContext.Compilation.GetTypeByMetadataName("DevTools.Testing.DefParametersAttribute")
+        startContext.Compilation.GetTypeByMetadataName("DevTools.Testing.DefsSourceAttribute")
       ];
       startContext.RegisterSymbolAction(symbolContext => AnalyzeMethod(symbolContext, fixture, testCase, methods, sources),
         SymbolKind.Method);

@@ -8,9 +8,9 @@ namespace DevTools.Testing;
 /// <summary>
 /// Provides matching defs as parameter values.
 /// </summary>
-[PublicAPI, MeansImplicitUse]
+[Obsolete("Use DefSourceAttribute instead.", error: true), MeansImplicitUse]
 [AttributeUsage(AttributeTargets.Parameter)]
-public class DefParametersAttribute : Attribute
+public class DefParametersAttribute : DefsSourceAttribute
 {
   /// <summary>
   /// Defines a parameter list for all defs matching the parameter Def type.
@@ -18,9 +18,8 @@ public class DefParametersAttribute : Attribute
   /// <param name="packageIds">
   /// Restrict the defs to those from mods matching these package ids.
   /// </param>
-  public DefParametersAttribute(params string[] packageIds)
+  public DefParametersAttribute(params string[] packageIds) : base(packageIds)
   {
-    OnlyFromMods = packageIds;
   }
 
   /// <summary>
@@ -31,19 +30,7 @@ public class DefParametersAttribute : Attribute
   /// <param name="packageIds">
   /// Restrict the defs to those from mods matching these package ids.
   /// </param>
-  public DefParametersAttribute(Type type, string filterName, params string[] packageIds)
+  public DefParametersAttribute(Type type, string filterName, params string[] packageIds) : base(type, filterName, packageIds)
   {
-    OnlyFromMods = packageIds;
-    Filter = AccessTools.Method(type, filterName);
   }
-
-  /// <summary>
-  /// Package ids allowed to provide defs.
-  /// </summary>
-  internal string[] OnlyFromMods { get; }
-
-  /// <summary>
-  /// Optional method used to filter defs.
-  /// </summary>
-  internal MethodInfo Filter { get; }
 }

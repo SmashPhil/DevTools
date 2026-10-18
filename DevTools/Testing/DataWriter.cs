@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -8,10 +9,9 @@ using Verse;
 
 namespace DevTools.Testing;
 
-#pragma warning disable CS0649 // Field is never assigned to
-
 internal sealed class TestManifest : IJsonSerializable
 {
+  public string Assembly { get; set; }
   public string Schema { get; set; }
   public string Version { get; set; }
   public string[] ModList { get; set; }
@@ -19,7 +19,7 @@ internal sealed class TestManifest : IJsonSerializable
   public List<TestMetaData> Tests { get; set; }
 
   [JsonIgnore]
-  string IJsonSerializable.FileName => "LoadedTestCases.json";
+  string IJsonSerializable.FileName => $"LoadedTestCases-{Assembly}.json";
 
   [JsonIgnore]
   JsonSerializerOptions IJsonSerializable.Options => new() { WriteIndented = true };
