@@ -75,10 +75,12 @@ public static class Test
   public static void Fail(Exception ex)
   {
     ITestGroup current = Current;
-    current.Exception ??= ex.InnerException ?? ex;
+    var exception = ex.InnerException ?? ex;
+    current.Exception ??= exception;
     Expect.SendSignal(Status.Failed,
       context: "Exception thrown!",
-      message: null);
+      message: null,
+      stackTrace: exception?.StackTrace);
   }
 
   public static IEnumerator Suspend(float secondsTimeOut, string message = null)
@@ -466,7 +468,7 @@ public static class Test
       }
     }
 
-    public StackTrace StackTrace
+    public string StackTrace
     {
       get;
       set

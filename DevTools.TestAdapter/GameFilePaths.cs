@@ -2,8 +2,6 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Xml.Linq;
-using Microsoft.VisualStudio.TestPlatform.ObjectModel.Adapter;
 
 namespace DevTools.TestAdapter;
 
@@ -62,7 +60,7 @@ internal static partial class GameFilePaths
     IntPtr pathPtr = IntPtr.Zero;
     try
     {
-      if (SHGetKnownFolderPath(in LocalLowId, 0, IntPtr.Zero, out pathPtr) == 0)
+      if (GetKnownFolderPath(in LocalLowId, 0, IntPtr.Zero, out pathPtr) == 0)
       {
         return Marshal.PtrToStringUni(pathPtr)!;
       }
@@ -100,7 +98,6 @@ internal static partial class GameFilePaths
     return false;
   }
 
-  // ReSharper disable once InconsistentNaming
-  [LibraryImport("shell32.dll")]
-  private static partial int SHGetKnownFolderPath(in Guid rfid, uint dwFlags, IntPtr hToken, out IntPtr pszPath);
+  [LibraryImport("shell32.dll", EntryPoint = "SHGetKnownFolderPath")]
+  private static partial int GetKnownFolderPath(in Guid rfid, uint dwFlags, IntPtr hToken, out IntPtr pszPath);
 }

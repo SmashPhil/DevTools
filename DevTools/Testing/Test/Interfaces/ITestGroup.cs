@@ -52,7 +52,7 @@ public interface ITestGroup : IDataRow<ExplorerColumn>
   /// <summary>
   /// Stacktrace for failed test case
   /// </summary>
-  StackTrace StackTrace { get; set; }
+  string StackTrace { get; set; }
 
   /// <summary>
   /// Exception thrown from test

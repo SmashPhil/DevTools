@@ -16,18 +16,18 @@ internal static class DevHarmony
 
   private static readonly Dictionary<ModContentPack, List<IDevTool>> ModDevTools = [];
 
-	public static CommandRunner.Result Args { get; private set; }
+  public static CommandRunner.Result Args { get; private set; }
 
-	// NOTE: Initialize from SCOS so dev tools static constructors have access to Defs
-	static DevHarmony()
-	{
-		Harmony.Patch(
-			original: AccessTools.Method(typeof(DebugWindowsOpener), "DrawButtons"),
-			postfix: new HarmonyMethod(typeof(DevHarmony),
-				nameof(DrawDebugWindowButton)));
+  // NOTE: Initialize from SCOS so dev tools static constructors have access to Defs
+  static DevHarmony()
+  {
+    Harmony.Patch(
+      original: AccessTools.Method(typeof(DebugWindowsOpener), "DrawButtons"),
+      postfix: new HarmonyMethod(typeof(DevHarmony),
+        nameof(DrawDebugWindowButton)));
 
-		LoadTypes();
-	}
+    LoadTypes();
+  }
 
   internal static Harmony Harmony { get; } = new(ModId);
 
@@ -47,7 +47,7 @@ internal static class DevHarmony
     return default;
   }
 
-	public static T GetDevTool<T>(ModContentPack mod) where T : IDevTool
+  public static T GetDevTool<T>(ModContentPack mod) where T : IDevTool
   {
     if (!ModDevTools.TryGetValue(mod, out List<IDevTool> tools))
       return default;
@@ -60,98 +60,98 @@ internal static class DevHarmony
     return default;
   }
 
-	private static T CreateDevTool<T>() where T : IDevTool, new()
-	{
-		T tool = new();
-		return tool;
-	}
+  private static T CreateDevTool<T>() where T : IDevTool, new()
+  {
+    T tool = new();
+    return tool;
+  }
 
-	private static void LoadTypes()
-	{
-		using DeepProfilerScope dps = new("Loading DevTools");
-		foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
-		{
-			TryLoadDevTool<BenchmarkManager>(mod);
-			TryLoadDevTool<TestFixtureManager>(mod);
-			TryLoadDevTool<SmokeTestManager>(mod);
-			TryLoadDevTool<TestPlanManager>(mod);
-		}
-		FinalizeInit();
-		return;
+  private static void LoadTypes()
+  {
+    using DeepProfilerScope dps = new("Loading DevTools");
+    foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
+    {
+      TryLoadDevTool<BenchmarkManager>(mod);
+      TryLoadDevTool<TestFixtureManager>(mod);
+      TryLoadDevTool<SmokeTestManager>(mod);
+      TryLoadDevTool<TestPlanManager>(mod);
+    }
+    FinalizeInit();
+    return;
 
-		static void TryLoadDevTool<T>(ModContentPack mod) where T : IDevTool, new()
-		{
-			T devTool = CreateDevTool<T>();
-			bool anyRegistered = false;
-			foreach (Type type in mod.assemblies.loadedAssemblies.SelectMany(assembly =>
-				assembly.GetTypes()))
-			{
-				try
-				{
-					anyRegistered |= devTool.TryRegisterType(type);
-				}
-				catch (Exception ex)
-				{
-					Log.Error($"Exception thrown loading type {type.Name} for {devTool}.\n{ex}");
-				}
-			}
-			if (anyRegistered && devTool.Init(mod))
-			{
-				if (!ModDevTools.TryGetValue(mod, out List<IDevTool> tools))
-				{
-					ModDevTools[mod] = tools = [];
-				}
-				tools.Add(devTool);
-			}
-		}
-	}
+    static void TryLoadDevTool<T>(ModContentPack mod) where T : IDevTool, new()
+    {
+      T devTool = CreateDevTool<T>();
+      bool anyRegistered = false;
+      foreach (Type type in mod.assemblies.loadedAssemblies.SelectMany(assembly =>
+        assembly.GetTypes()))
+      {
+        try
+        {
+          anyRegistered |= devTool.TryRegisterType(type);
+        }
+        catch (Exception ex)
+        {
+          Log.Error($"Exception thrown loading type {type.Name} for {devTool}.\n{ex}");
+        }
+      }
+      if (anyRegistered && devTool.Init(mod))
+      {
+        if (!ModDevTools.TryGetValue(mod, out List<IDevTool> tools))
+        {
+          ModDevTools[mod] = tools = [];
+        }
+        tools.Add(devTool);
+      }
+    }
+  }
 
-	private static void FinalizeInit()
-	{
-		Args = null;
-		// Run commands for matching pid only
-		foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
-		{
-			Args = CommandRunner.ExecuteCommandLineArgs(mod);
-			if (Args != null)
-				break;
-		}
+  private static void FinalizeInit()
+  {
+    Args = null;
+    // Run commands for matching pid only
+    foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
+    {
+      Args = CommandRunner.ExecuteCommandLineArgs(mod);
+      if (Args != null)
+        break;
+    }
 
-		if (Args is { hideWindow: true })
-		{
-			BatchModeCompatibility.Enable();
-		}
-	}
+    if (Args is { hideWindow: true })
+    {
+      BatchModeCompatibility.Enable();
+    }
+  }
 
-	private static void OpenModMenu()
-	{
-		List<DebugMenuOption> options = [];
-		foreach (ModContentPack mod in ModDevTools.Keys)
-		{
-			options.Add(
-				new DebugMenuOption(mod.Name, DebugMenuOptionMode.Action, () => OpenToolMenu(mod)));
-		}
-		Find.WindowStack.Add(new Dialog_DebugOptionListLister(options, "Mods"));
-	}
+  private static void OpenModMenu()
+  {
+    List<DebugMenuOption> options = [];
+    foreach (ModContentPack mod in ModDevTools.Keys)
+    {
+      options.Add(
+        new DebugMenuOption(mod.Name, DebugMenuOptionMode.Action, () => OpenToolMenu(mod)));
+    }
+    Find.WindowStack.Add(new Dialog_DebugOptionListLister(options, "Mods"));
+  }
 
-	private static void OpenToolMenu(ModContentPack mod)
-	{
-		List<DebugMenuOption> toolOptions = [];
-		foreach (IDevTool tool in ModDevTools[mod])
-		{
-			if (tool is not IDevToolWithMenu devToolWithMenu)
-				continue;
+  private static void OpenToolMenu(ModContentPack mod)
+  {
+    List<DebugMenuOption> toolOptions = [];
+    foreach (IDevTool tool in ModDevTools[mod])
+    {
+      if (tool is not IDevToolWithMenu devToolWithMenu)
+        continue;
 
-			toolOptions.Add(new DebugMenuOption(devToolWithMenu.Name, DebugMenuOptionMode.Action,
-				devToolWithMenu.OpenMenu));
-		}
-		Find.WindowStack.Add(new Dialog_DebugOptionListLister(toolOptions, "Tools"));
-	}
+      toolOptions.Add(new DebugMenuOption(devToolWithMenu.Name, DebugMenuOptionMode.Action,
+        devToolWithMenu.OpenMenu));
+    }
+    Find.WindowStack.Add(new Dialog_DebugOptionListLister(toolOptions, "Tools"));
+  }
 
-	private static void DrawDebugWindowButton(WidgetRow ___widgetRow, out float ___widgetRowFinalX)
-	{
-		if (___widgetRow.ButtonIcon(TexButton.OpenStatsReport, "DevTools"))
-		{
+  private static void DrawDebugWindowButton(WidgetRow ___widgetRow, out float ___widgetRowFinalX)
+  {
+    if (___widgetRow.ButtonIcon(TexButton.OpenStatsReport, "DevTools"))
+    {
       if (ModDevTools.Count > 1)
       {
         OpenModMenu();
@@ -160,7 +160,7 @@ internal static class DevHarmony
       {
         OpenToolMenu(ModDevTools.FirstOrDefault().Key);
       }
-		}
-		___widgetRowFinalX = ___widgetRow.FinalX;
-	}
+    }
+    ___widgetRowFinalX = ___widgetRow.FinalX;
+  }
 }

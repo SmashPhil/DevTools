@@ -166,7 +166,7 @@ public static class Expect
   }
 
   internal static void SendSignal(Status status, string context, string message,
-    string failureMessage = null, int skipFrames = 1)
+    string failureMessage = null, string stackTrace = null, int skipFrames = 1)
   {
     if (!TestRunner.Active)
     {
@@ -182,12 +182,16 @@ public static class Expect
       current.TestContext ??= context;
       current.FailLabel ??= message;
       current.FailMessage ??= failureMessage;
-      StackTrace stackTrace = new(skipFrames, true);
-      if (status is Status.Failed && Debugger.IsAttached && TestFixtureManager.BreakOnTestFailure)
-      {
-        Debugger.Break();
-      }
       current.StackTrace ??= stackTrace;
+      if (current.StackTrace == null)
+      {
+        StackTrace frameStackTrace = new(skipFrames, true);
+        if (status is Status.Failed && Debugger.IsAttached && TestFixtureManager.BreakOnTestFailure)
+        {
+          Debugger.Break();
+        }
+        current.StackTrace = frameStackTrace.ToString();
+      }
     }
   }
 }
