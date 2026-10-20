@@ -25,7 +25,8 @@
     <UseKrafsPackageRef>false</UseKrafsPackageRef>
 
     <ModDir>$(MSBuildThisFileDirectory)\..\</ModDir>
-    <RefDir>$(ModDir)..\..\</RefDir>
+    <RefDir>$([MSBuild]::NormalizeDirectory('$(ModDir)', '..', '..'))</RefDir>
+    <RefDir Condition="Exists('$(RefDir)RimWorld.app\Contents\MacOS\Assembly-CSharp.dll')">$(RefDir)RimWorld.app\Contents\MacOS\</RefDir>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
