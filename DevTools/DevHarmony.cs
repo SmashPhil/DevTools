@@ -35,7 +35,7 @@ internal static class DevHarmony
   {
     foreach ((ModContentPack mod, List<IDevTool> tools) in ModDevTools)
     {
-      if (mod.PackageIdPlayerFacing == packageId)
+      if (mod.PackageIdPlayerFacing.EqualsIgnoreCase(packageId))
       {
         foreach (IDevTool tool in tools)
         {
