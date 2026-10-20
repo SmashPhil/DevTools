@@ -36,7 +36,7 @@ internal sealed class TestManifest : IJsonSerializable
 
 internal static class DataWriter<T> where T : IJsonSerializable
 {
-  private const string Folder = @"Ludeon Studios\RimWorld by Ludeon Studios\DevTools";
+  private const string Folder = @"Ludeon Studios/RimWorld by Ludeon Studios/DevTools";
 
   private static string GetPath(T serializable)
   {
