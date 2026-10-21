@@ -1,4 +1,6 @@
-﻿using System.Threading;
+﻿using System;
+using System.Collections;
+using System.Reflection;
 using DevTools.Testing;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -34,22 +36,42 @@ internal sealed class DevMod : Mod
     public static void Start(string packageId)
     {
       ExecuteAtMainMenu exec = new(packageId);
-      Thread thread = new(exec.Execute) { IsBackground = true };
-      thread.Start();
+      // Root.Shutdown calls into Steam, so this runs on the main thread. A long event runs after
+      // the static constructor calls, so CoroutineObject exists by then.
+      LongEventHandler.QueueLongEvent(() => CoroutineObject.Instance.StartCoroutine(exec.Execute()),
+        "LoadingLongEvent", false, _ => Root.Shutdown());
     }
 
-    private void Execute()
+    // Quits even when discovery fails, so a caller waiting on the process is not left hanging.
+    private IEnumerator Execute()
     {
-      do
+      try
       {
-        Thread.Sleep(200);
-      } while (LongEventHandler.AnyEventNowOrWaiting ||
-               !typeof(Root_Entry).StaticFieldRefAccess<bool>("globalInitDone"));
+        FieldInfo globalInitDone = AccessTools.Field(typeof(Root_Entry), "globalInitDone");
+        while (LongEventHandler.AnyEventNowOrWaiting || !(bool)globalInitDone.GetValue(null))
+        {
+          yield return null;
+        }
+        Discover();
+      }
+      finally
+      {
+        Root.Shutdown();
+      }
+    }
 
-      ModsConfig.Save();
-      ITestManager manager = DevHarmony.GetDevTool<TestFixtureManager>(packageId);
-      manager.SaveMetaData();
-      Root.Shutdown();
+    private void Discover()
+    {
+      try
+      {
+        ModsConfig.Save();
+        ITestManager manager = DevHarmony.GetDevTool<TestFixtureManager>(packageId);
+        manager.SaveMetaData();
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"Test discovery for {packageId} failed.\n{ex}");
+      }
     }
   }
 }
