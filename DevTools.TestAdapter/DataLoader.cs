@@ -7,7 +7,7 @@ namespace DevTools.TestAdapter;
 internal static class DataLoader<T> where T : IVersionable
 {
   private const string SchemaVersion = "1.0.0";
-  private const string Folder = @"Ludeon Studios\RimWorld by Ludeon Studios\DevTools";
+  private const string Folder = @"Ludeon Studios/RimWorld by Ludeon Studios/DevTools";
 
   private static string GetPath(string fileName)
   {
