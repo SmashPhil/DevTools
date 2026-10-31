@@ -9,11 +9,8 @@ using UnityEngine;
 using UnityEngine.Assertions;
 using Verse;
 using Verse.Profile;
-using static DevTools.Testing.Expression;
 
 namespace DevTools.Testing;
-
-public delegate IEnumerable<(ITestFixture, List<ITestFunction>)> TestFilter(ITestManager testManager);
 
 public delegate bool StopOnTest(ITestCase testCase);
 
@@ -24,13 +21,13 @@ public sealed class TestRunner
 {
   public readonly ITestManager testManager;
 
-  private readonly ExpressionTree expressionTree;
-  private readonly TestFilter testFilter;
-
   private readonly List<StopOnTest> stopConditions = [];
 
   private readonly List<TestAction> preTestActions = [];
+
   private readonly List<TestAction> postTestActions = [];
+
+  private TestFilter testFilter = new();
 
   private int tcpPort;
   private string tcpSessionId;
@@ -49,46 +46,26 @@ public sealed class TestRunner
     this.testManager = testManager;
   }
 
-  public TestRunner(ITestManager testManager, [NotNull] TestFilter testFilter)
-    : this(testManager)
-  {
-    this.testFilter = testFilter;
-  }
-
-  public TestRunner(ITestManager testManager, [NotNull] ExpressionTree expressionTree)
-    : this(testManager)
-  {
-    this.expressionTree = expressionTree;
-  }
-
   public static bool Active => Current != null;
 
   public static TestRunner Current { get; private set; }
 
   private bool StopRequested { get; set; }
 
-  public void And(Expression expression, Comparison comparison, string value)
+  public void AddFilter(TestFilter filter)
   {
-    if (expressionTree is null)
-    {
-      Log.Error(
-        $"Unable to add expression {expression.GetType()} to tree. TestRunner created without expressions.");
-      return;
-    }
-    expressionTree.SetBoolean(Expression.Boolean.And);
-    expressionTree.Add(expression, comparison, value);
+    testFilter += filter;
   }
 
-  public void Or(Expression expression, Comparison comparison, string value)
+  public void AddFilter(TestFilter.FilterFunc function)
   {
-    if (expressionTree is null)
-    {
-      Log.Error(
-        $"Unable to add expression {expression.GetType()} to tree. TestRunner created without expressions.");
-      return;
-    }
-    expressionTree.SetBoolean(Expression.Boolean.Or);
-    expressionTree.Add(expression, comparison, value);
+    testFilter += function;
+  }
+
+  public void AddTcpConnection(int port, string sessionId)
+  {
+    tcpPort = port;
+    tcpSessionId = sessionId;
   }
 
   public void AddTestActions(ITestActions testActions)
@@ -113,12 +90,6 @@ public sealed class TestRunner
     postTestActions.Add(testAction);
   }
 
-  public void ConnectTcp(int port, string sessionId)
-  {
-    tcpPort = port;
-    tcpSessionId = sessionId;
-  }
-
   public void Run()
   {
     LongEventHandler.ExecuteWhenFinished(delegate
@@ -133,10 +104,7 @@ public sealed class TestRunner
       }
 
       StopRequested = false;
-      TestFilter filter = expressionTree != null ? expressionTree.GetFilteredTests : testFilter;
-      // Unfiltered expression tree will return all tests in order of TestType
-      filter ??= new ExpressionTree().GetFilteredTests;
-      CoroutineObject.Instance.StartCoroutine(TestRoutine(filter));
+      CoroutineObject.Instance.StartCoroutine(TestRoutine(testFilter));
     });
   }
 
@@ -184,9 +152,9 @@ public sealed class TestRunner
     // tests makes it easier for deciding when a test status can be overwritten by a new result,
     // such as premature skips / failures.
     // ReSharper disable PossibleMultipleEnumeration
-    var testsToRun = filter(testManager);
-    ResetAll(testsToRun);
-    foreach ((ITestFixture fixture, List<ITestFunction> functions) in testsToRun)
+    var tests = filter.MatchesFrom(testManager.TestFixtures);
+    ResetAll(tests);
+    foreach ((ITestFixture fixture, List<ITestFunction> functions) in tests)
     {
       if (StopRequested || ShouldStop(fixture))
         break;

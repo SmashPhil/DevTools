@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using UnityEngine.Assertions;
 using Verse;
 
@@ -20,63 +21,32 @@ internal class TestSelector : SelectionManager<ITestGroup>
   protected override void ShowContextMenu()
   {
     List<FloatMenuOption> options = [];
-    // ReSharper disable UseObjectOrCollectionInitializer
-    FloatMenuOption runSelectedOpt =
-      new("Run Selected", testManager.GetRunnerWith(SelectedFilter).Run);
-    runSelectedOpt.Disabled = !AnySelected;
+    TestRunner runner = new(testManager);
+    runner.AddFilter(SelectorFilter);
+    FloatMenuOption runSelectedOpt = new("Run Selected", runner.Run)
+    {
+      Disabled = !AnySelected
+    };
     options.Add(runSelectedOpt);
     Find.WindowStack.Add(new FloatMenu(options));
   }
 
-  private IEnumerable<(ITestFixture, List<ITestFunction>)> SelectedFilter(ITestManager manager)
+  private bool SelectorFilter(ITestFixture fixture, ITestFunction function)
   {
-    HashSet<ITestFixture> selectedFixtures = [];
-    HashSet<ITestFunction> selectedFunctions = [];
+    return IsSelected(fixture.Module) ||
+           IsSelected(fixture) ||
+           IsSelected(function);
+  }
 
-    foreach (ITestGroup group in selected)
-    {
-      AddGroup(group);
-    }
+  private bool IsSelected(ITestCase testCase)
+  {
+    Assert.IsNotNull(testCase);
+    return selected.Contains(Test.GetEntry(testCase));
+  }
 
-    foreach (ITestFixture fixture in manager.TestFixtures)
-    {
-      bool runAllInFixture = selectedFixtures.Contains(fixture);
-      List<ITestFunction> functions = [];
-
-      foreach (ITestFunction function in fixture.TestFunctions)
-      {
-        Assert.IsTrue(function.MethodType is MethodType.Test);
-        if (runAllInFixture || selectedFunctions.Contains(function))
-        {
-          functions.Add(function);
-        }
-      }
-
-      if (functions.Count > 0)
-      {
-        yield return (fixture, functions);
-      }
-    }
-    yield break;
-
-    void AddGroup(ITestGroup group)
-    {
-      switch (group.TestCase)
-      {
-        case ITestFixture fixture:
-          selectedFixtures.Add(fixture);
-          break;
-        case ITestFunction function:
-          Assert.IsTrue(function.MethodType is MethodType.Test);
-          selectedFunctions.Add(function);
-          break;
-        default:
-          foreach (ITestGroup child in group.Children)
-          {
-            AddGroup(child);
-          }
-          break;
-      }
-    }
+  private bool IsSelected(ITestModule module)
+  {
+    Assert.IsNotNull(module);
+    return selected.Contains(Test.GetEntry(module));
   }
 }

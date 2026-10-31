@@ -6,4 +6,6 @@ namespace DevTools.Testing;
 public interface ITestModule
 {
   string Name { get; }
+
+  string Source { get; }
 }

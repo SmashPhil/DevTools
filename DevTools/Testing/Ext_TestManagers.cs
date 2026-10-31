@@ -73,7 +73,7 @@ public static class Ext_TestManagers
               Assembly = name,
               Schema = SchemaVersion,
               Version = VersionControl.CurrentVersionStringWithRev,
-              ModList = ModsConfig.ActiveModsInLoadOrder.Select(modMeta => modMeta.PackageIdNonUnique).ToArray(),
+              ModList = ModsConfig.ActiveModsInLoadOrder.Select(modMeta => modMeta.PackageId).ToArray(),
               Assemblies = LoadedModManager.RunningModsListForReading
                 .SelectMany(modContent => modContent.assemblies.loadedAssemblies
                   .Select(asm => asm.FullName)).Order().ToArray(),
@@ -107,16 +107,6 @@ public static class Ext_TestManagers
       }
     }
 
-    public TestRunner GetRunnerWith([NotNull] TestFilter filter)
-    {
-      return new TestRunner(manager, filter);
-    }
-
-    public TestRunner GetRunnerWith([NotNull] ExpressionTree expressionTree)
-    {
-      return new TestRunner(manager, expressionTree);
-    }
-
     public TestRunner GetRunnerWith<T>(Expression.Comparison comparison, string value)
       where T : Expression, new()
     {
@@ -129,7 +119,9 @@ public static class Ext_TestManagers
     {
       ExpressionTree tree = new();
       tree.Add(expression, comparison, value);
-      return new TestRunner(manager, tree);
+      TestRunner runner = new(manager);
+      runner.AddFilter(tree.Filter);
+      return runner;
     }
   }
 

@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using Verse;
 
 namespace DevTools.Testing;
@@ -7,17 +6,17 @@ namespace DevTools.Testing;
 public class TestPlan
 {
 	public string name = null;
+
 	public List<TestPlanJob> jobs = null;
 
 	public bool IsValid => !jobs.NullOrEmpty();
 
-  public List<ITestFixture> Fixtures { get; } = [];
+  public HashSet<ITestFixture> Fixtures { get; } = [];
 
-  public IEnumerable<(ITestFixture, List<ITestFunction>)> Filter(ITestManager _)
+  internal string FilePath { get; set; }
+
+  public bool Filter(ITestFixture fixture, ITestFunction _)
   {
-    foreach (ITestFixture fixture in Fixtures)
-    {
-      yield return (fixture, fixture.TestFunctions.ToList());
-    }
+    return Fixtures.Contains(fixture);
   }
 }

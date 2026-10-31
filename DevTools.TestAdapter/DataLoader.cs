@@ -34,7 +34,7 @@ internal static class DataLoader<T> where T : IVersionable
     T data = JsonSerializer.Deserialize<T>(stream);
     if (data.Schema != SchemaVersion)
     {
-      Console.WriteLine("Loading file with mismatched schema version.");
+      Console.Error.Write("Loading file with mismatched schema version.");
     }
     return data;
   }

@@ -14,10 +14,11 @@ internal static class CommandRunner
     const string PackageIdArg = "--pid";
 
     const string RunTestsArg = "--test";
+    const string FilterArg = "--filter";
     const string WhereArg = "--where";
 
     const string RunPlanArg = "--test-plan";
-    const string RunListArg = "--test-list";
+    const string RunListArg = "--test-file";
     const string SmokeTestArg = "--smoke-test";
 
     const string RunTestsShort = "-t";
@@ -34,7 +35,6 @@ internal static class CommandRunner
     const string NoWindow = "-NoWindow";
     const string Headless = "-Headless";
 
-    TestSelection selection = TestSelection.None;
     ManagerType type = ManagerType.Unit;
     string[] args = Environment.GetCommandLineArgs();
     if (args.Length == 0)
@@ -58,18 +58,15 @@ internal static class CommandRunner
           break;
         case RunPlanArg or RunPlanShort:
           type = ManagerType.Plan;
-          selection = TestSelection.Filter;
           if (i + 1 < args.Length)
           {
             result.LoadTestPlan(mod, args[++i]);
           }
           break;
         case RunListArg:
-          selection = TestSelection.Filter;
-          result.LoadTestList(args[++i]);
+          result.TestListFile = args[++i];
           break;
-        case WhereArg or WhereShort:
-          selection = TestSelection.Expression;
+        case WhereArg or WhereShort or FilterArg:
           if (i + 1 < args.Length)
             result.Expression = args[++i];
           break;
@@ -81,7 +78,7 @@ internal static class CommandRunner
           result.exitOnFinish = true;
           break;
         case Headless:
-          result.headless = false;
+          result.headless = true;
           break;
         case PortArg:
           string portStr = args[++i];
@@ -110,31 +107,40 @@ internal static class CommandRunner
       _ => throw new NotImplementedException(type.ToString())
     };
 
-    TestRunner testRunner = selection switch
+    TestRunner testRunner = new(testManager);
+    if (result.Filter != null)
     {
-      TestSelection.None => new TestRunner(testManager),
-      TestSelection.Expression => testManager.GetRunnerWith(result.ExpressionTree),
-      TestSelection.Filter => testManager.GetRunnerWith(result.Filter),
-      _ => throw new NotImplementedException(selection.ToString())
-    };
+      testRunner.AddFilter(result.Filter);
+    }
+    if (!result.Expression.NullOrEmpty())
+    {
+      testRunner.AddFilter(new ExpressionFilter(result.Expression).Filter);
+    }
+    if (!result.TestListFile.NullOrEmpty())
+    {
+      testRunner.AddFilter(LoadTestList(result.TestListFile));
+    }
     if (result.port != null && !result.sessionId.NullOrEmpty())
     {
-      testRunner.ConnectTcp(result.port.Value, result.sessionId);
+      testRunner.AddTcpConnection(result.port.Value, result.sessionId);
     }
-
     if (testManager is { Config: ITestActions testActions })
     {
       testRunner.AddTestActions(testActions);
     }
     testRunner.Run();
     return result;
-  }
 
-  private enum TestSelection
-  {
-    None,
-    Expression,
-    Filter
+    static TestFilter LoadTestList(string filePath)
+    {
+      HashSet<string> names = File.ReadAllLines(filePath).ToHashSet();
+      return new TestFilter(NameFilter);
+
+      bool NameFilter(ITestFixture fixture, ITestFunction function)
+      {
+        return names.Contains(fixture.FullName) || names.Contains(function.FullName);
+      }
+    }
   }
 
   private enum ManagerType
@@ -154,21 +160,11 @@ internal static class CommandRunner
     public int? port;
     public string sessionId;
 
-    public string Expression
-    {
-      get;
-      set
-      {
-        field = value;
-        ExpressionTree = !field.NullOrEmpty() ? ExpressionGenerator.Create(field) : null;
-      }
-    }
+    public string Expression { get; set; }
 
     public string TestPlan { get; private set; }
 
-    public string TestListFile { get; private set; }
-
-    public ExpressionTree ExpressionTree { get; private set; }
+    public string TestListFile { get; set; }
 
     public TestFilter Filter { get; private set; }
 
@@ -177,34 +173,7 @@ internal static class CommandRunner
       TestPlan = name;
       TestPlan plan = DevHarmony.GetDevTool<TestPlanManager>(mod)?.FindPlan(name);
       // Can't use null conditional, method group conversion causes compiler error.
-      Filter = plan != null ? plan.Filter : null;
-    }
-
-    public void LoadTestList(string filePath)
-    {
-      TestListFile = filePath;
-      HashSet<string> names = File.ReadAllLines(filePath).ToHashSet();
-      Filter = NameFilter;
-      return;
-
-      IEnumerable<(ITestFixture, List<ITestFunction>)> NameFilter(ITestManager manager)
-      {
-        foreach (ITestFixture fixture in manager.TestFixtures)
-        {
-          List<ITestFunction> functions = [];
-          foreach (ITestFunction function in fixture.TestFunctions)
-          {
-            if (names.Contains(function.FullName))
-            {
-              functions.Add(function);
-            }
-          }
-          if (functions.Count > 0)
-          {
-            yield return (fixture, functions);
-          }
-        }
-      }
+      Filter = plan != null ? new TestFilter(plan.Filter) : null;
     }
   }
 }

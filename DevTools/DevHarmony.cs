@@ -35,7 +35,7 @@ internal static class DevHarmony
   {
     foreach ((ModContentPack mod, List<IDevTool> tools) in ModDevTools)
     {
-      if (mod.PackageIdPlayerFacing == packageId)
+      if (mod.PackageIdPlayerFacing.EqualsIgnoreCase(packageId))
       {
         foreach (IDevTool tool in tools)
         {
@@ -115,11 +115,6 @@ internal static class DevHarmony
       Args = CommandRunner.ExecuteCommandLineArgs(mod);
       if (Args != null)
         break;
-    }
-
-    if (Args is { hideWindow: true })
-    {
-      BatchModeCompatibility.Enable();
     }
   }
 

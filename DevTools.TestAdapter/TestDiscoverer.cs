@@ -46,24 +46,21 @@ public sealed class TestDiscoverer : ITestDiscoverer
 
   private TestData FetchTestData(string source, RunSettings settings)
   {
+    string fileName = string.Format(TestCaseFile, source);
     TestData data;
     if (settings.AutoRecacheOnBuild)
     {
-      using (new MutexLock(mutex))
+      using MutexLock mutexLock = new(mutex);
+      data = DataLoader<TestData>.Load(fileName);
+      if (data is null || OutOfDateCache(data))
       {
-        string fileName = string.Format(TestCaseFile, source);
+        QuickBootGame(settings);
         data = DataLoader<TestData>.Load(fileName);
-        if (settings.AutoRecacheOnBuild && (data is null || OutOfDateCache(data)))
-        {
-          //Console.WriteLine("Running RimWorld to recache test list.");
-          //QuickBootGame(settings);
-          //data = DataLoader<TestData>.Load(TestCaseFile);
-        }
       }
     }
     else
     {
-      data = DataLoader<TestData>.Load(TestCaseFile);
+      data = DataLoader<TestData>.Load(fileName);
     }
     return data;
   }
@@ -106,12 +103,11 @@ public sealed class TestDiscoverer : ITestDiscoverer
       {
         // Cecil uses "/" for nested types, reflection uses "+"
         string typeName = type.FullName.Replace('/', '+');
-        string qualifiedName = $"{typeName}.{method.Name}";
-        foreach (TestNames data in AddTestsFrom(method))
+        foreach (string name in AddTestsFrom(method))
         {
-          TestCase testCase = new($"{qualifiedName}{data.NameSuffix}", new Uri(AdapterInfo.ExecutorUri), path)
+          TestCase testCase = new($"{typeName}.{name}", new Uri(AdapterInfo.ExecutorUri), path)
           {
-            DisplayName = data.DisplayName
+            DisplayName = name
           };
           discoverySink.SendTestCase(testCase);
         }
@@ -131,42 +127,42 @@ public sealed class TestDiscoverer : ITestDiscoverer
     }
   }
 
-  private static IEnumerable<TestNames> AddTestsFrom(MethodDefinition method)
+  private static IEnumerable<string> AddTestsFrom(MethodDefinition method)
   {
     if (HasAttribute(method, DevToolTypes.Test))
     {
-      foreach (TestNames data in AddTest(method))
+      foreach (string data in AddTest(method))
       {
         yield return data;
       }
     }
     else if (HasAttribute(method, DevToolTypes.TestCase))
     {
-      foreach (TestNames data in AddTestCase(method))
+      foreach (string data in AddTestCase(method))
       {
         yield return data;
       }
     }
     yield break;
 
-    static IEnumerable<TestNames> AddTest(MethodDefinition method)
+    static IEnumerable<string> AddTest(MethodDefinition method)
     {
       if (method.Parameters is not { Count: 1 })
       {
-        yield return new TestNames(method.Name, string.Empty);
+        yield return method.Name;
       }
       else if (HasAttribute(method.Parameters[0], DevToolTypes.Parameters))
       {
         CustomAttribute attribute = GetAttribute(method.Parameters[0], DevToolTypes.Parameters);
         var args = (CustomAttributeArgument[])attribute.ConstructorArguments[0].Value;
-        for (int i = 0; i < args.Length; i++)
+        foreach (var arg in args)
         {
-          yield return new TestNames($"{method.Name}({((CustomAttributeArgument)args[i].Value).Value})", $"#case:{i}");
+          yield return $"{method.Name}({((CustomAttributeArgument)arg.Value).Value})";
         }
       }
     }
 
-    static IEnumerable<TestNames> AddTestCase(MethodDefinition method)
+    static IEnumerable<string> AddTestCase(MethodDefinition method)
     {
       for (int i = 0; i < method.CustomAttributes.Count; i++)
       {
@@ -175,9 +171,8 @@ public sealed class TestDiscoverer : ITestDiscoverer
           continue;
 
         var args = (CustomAttributeArgument[])attribute.ConstructorArguments[0].Value;
-        string argString =
-          args == null ? "null" : string.Join(", ", args.Select(FormatArgument));
-        yield return new TestNames($"{method.Name}({argString})", $"#case:{i}");
+        string argString = args == null ? "null" : string.Join(", ", args.Select(FormatArgument));
+        yield return $"{method.Name}({argString})";
       }
     }
   }
@@ -241,16 +236,9 @@ public sealed class TestDiscoverer : ITestDiscoverer
       CreateNoWindow = false,
       WindowStyle = ProcessWindowStyle.Normal
     };
-    startInfo.ArgumentList.Add($"--test-discovery={settings.PackageId}");
+    startInfo.ArgumentList.Add($"--test-discovery={settings.PackageId} -QuitAfterBoot");
     startInfo.ArgumentList.Add("-Headless");
     using Process process = Process.Start(startInfo);
     process?.WaitForExit();
-  }
-
-  private readonly struct TestNames(string displayName, string nameSuffix)
-  {
-    public string NameSuffix { get; } = nameSuffix;
-
-    public string DisplayName { get; } = displayName;
   }
 }

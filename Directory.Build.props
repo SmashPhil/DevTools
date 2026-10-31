@@ -1,10 +1,11 @@
 <Project>
   <PropertyGroup>
-    <Configurations>Debug;Unstable;Release;ReleaseTesting;</Configurations>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <FileVersion>1.0.0</FileVersion>
     <AssemblyVersion>1.0.0</AssemblyVersion>
+
+    <Configurations>Debug;Release;</Configurations>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
 
     <GenerateDocumentationFile>False</GenerateDocumentationFile>
     <GenerateDependencyFile>false</GenerateDependencyFile>
@@ -22,30 +23,59 @@
     <DebugSymbols>true</DebugSymbols>
 
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <UseKrafsPackageRef>false</UseKrafsPackageRef>
+    <UseKrafsPackageRef>true</UseKrafsPackageRef>
 
     <ModDir>$(MSBuildThisFileDirectory)\..\</ModDir>
     <RefDir>$([MSBuild]::NormalizeDirectory('$(ModDir)', '..', '..'))</RefDir>
     <RefDir Condition="Exists('$(RefDir)RimWorld.app\Contents\MacOS\Assembly-CSharp.dll')">$(RefDir)RimWorld.app\Contents\MacOS\</RefDir>
+	  <RunSettingsFilePath>$(ModDir).runsettings</RunSettingsFilePath>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Optimize>false</Optimize>
-    <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;DEV_TOOLS;PROFILER;</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Unstable|AnyCPU'">
-    <Optimize>true</Optimize>
-    <DefineConstants>TRACE;UNSTABLE;UNITY_ASSERTIONS;DEV_TOOLS;</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;UNITY_ASSERTIONS;</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>true</Optimize>
-    <DefineConstants>TRACE;RELEASE;</DefineConstants>
+    <DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS;</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'ReleaseTesting|AnyCPU'">
-    <Optimize>true</Optimize>
-    <DefineConstants>TRACE;RELEASE;UNITY_ASSERTIONS;DEV_TOOLS;PROFILER;</DefineConstants>
-  </PropertyGroup>
+  <ItemGroup Condition="'$(UseKrafsPackageRef)' == 'true' AND '$(UseRimWorldRefs)' != 'false'">
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.7.*-*" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UseKrafsPackageRef)' != 'true' AND '$(UseRimWorldRefs)' != 'false'">
+    <Reference Include="System">
+      <HintPath>$(RefDir)\System.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Xml">
+      <HintPath>$(RefDir)\System.Xml.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Xml.Linq">
+      <HintPath>$(RefDir)\System.Xml.Linq.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="mscorlib">
+      <HintPath>$(RefDir)\mscorlib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityStubs">
+      <HintPath>$(RefDir)\UnityStubs.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(RefDir)\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Waylith">
+      <HintPath>$(RefDir)\Waylith.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Waylith.UnityCompat">
+      <HintPath>$(RefDir)\Waylith.UnityCompat.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
 </Project>

@@ -9,6 +9,7 @@
 
     <OutDir>$(ModDir)\1.7\Assemblies\</OutDir>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <UseRimWorldRefs>false</UseRimWorldRefs>
   </PropertyGroup>
 
   <ItemGroup>

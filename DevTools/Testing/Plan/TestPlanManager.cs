@@ -67,6 +67,7 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
         TestPlan testPlan = DirectXmlLoader.ItemFromXmlFile<TestPlan>(file.FullName);
         if (testPlan.IsValid)
         {
+          testPlan.FilePath = file.FullName;
           PlanModule module = new(mod, testPlan);
           foreach (TestPlanJob job in testPlan.jobs)
           {
@@ -123,7 +124,9 @@ internal class TestPlanManager : IDevToolWithMenu, ITestManager
     {
       options.Add(new FloatMenuOption(plan.name, delegate
       {
-        this.GetRunnerWith(plan.Filter).Run();
+        TestRunner runner = new(this);
+        runner.AddFilter(plan.Filter);
+        runner.Run();
       }));
     }
     Find.WindowStack.Add(new FloatMenu(options));

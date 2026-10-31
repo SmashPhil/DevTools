@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,53 +15,86 @@ namespace DevTools.TestAdapter;
 
 internal sealed class TestSession : IDisposable
 {
+  private const string TestListFileName = "DevTools_TestList-{0}.txt";
+
+  private readonly RunSettings settings;
   private readonly string packageId;
-  private readonly string testListPath;
+  private readonly IRunContext runContext;
   private readonly ProcessStartInfo startInfo;
 
+  private readonly List<string> arguments = [];
+  private readonly Dictionary<string, TestCase> testsByName = [];
   private Process process;
   private CancellationTokenSource cts;
+  
+  private event Action OnSessionEnd;
 
-  public TestSession(string packageId, string testListPath, string exePath)
+  public TestSession(RunSettings settings, IRunContext runContext)
   {
-    this.packageId = packageId;
-    this.testListPath = testListPath;
+    this.settings = settings;
+    packageId = settings.PackageId;
+    this.runContext = runContext;
     startInfo = new ProcessStartInfo
     {
-      FileName = exePath,
-      WorkingDirectory = Path.GetDirectoryName(exePath)!,
+      FileName = settings.ExePath,
+      WorkingDirectory = Path.GetDirectoryName(settings.ExePath)!,
       UseShellExecute = true,
-      CreateNoWindow = false,
-      WindowStyle = ProcessWindowStyle.Normal
+      CreateNoWindow = settings.Mode is RunSettings.WindowMode.NoWindow or RunSettings.WindowMode.Headless,
+      WindowStyle = settings.Mode is RunSettings.WindowMode.Minimized ?
+        ProcessWindowStyle.Minimized :
+        ProcessWindowStyle.Normal
     };
   }
 
-  public void Dispose()
+  public Guid SessionId { get; } = Guid.NewGuid();
+
+  public void LoadTests(IEnumerable<TestCase> tests)
   {
-    if (process is { HasExited: false })
+    testsByName.Clear();
+    string tempFile = Path.Combine(Path.GetTempPath(), string.Format(TestListFileName, SessionId));
+    using var stream = File.CreateText(tempFile);
+    foreach (TestCase test in tests)
     {
-      Kill();
+      stream.WriteLine(test.DisplayName);
+      testsByName[test.DisplayName] = test;
     }
-    cts?.Dispose();
-    cts = null;
-    process?.Dispose();
-    process = null;
+    arguments.Add($"--test-file {tempFile}");
+    OnSessionEnd += () => File.Delete(tempFile);
   }
 
-  public void Run(IEnumerable<TestCase> tests, IFrameworkHandle handle)
+  public void AddArg(string arg)
   {
-    RunAsync(tests, handle).GetAwaiter().GetResult();
+    arguments.Add(arg);
   }
 
-  public async Task RunAsync(IEnumerable<TestCase> tests, IFrameworkHandle handle)
+  public void Run(IFrameworkHandle handle)
+  {
+    RunAsync(handle).GetAwaiter().GetResult();
+  }
+
+  public async Task RunAsync(IFrameworkHandle handle)
   {
     cts = new CancellationTokenSource();
     using TcpListener listener = new(IPAddress.Loopback, port: 0);
     listener.Start();
 
-    string sessionId = Guid.NewGuid().ToString();
+    string sessionId = SessionId.ToString();
     int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-    LaunchGame(port, sessionId);
+    string args = GetCommandLineArgs(port, sessionId);
+    if (runContext.IsBeingDebugged)
+    {
+      int pid = handle.LaunchProcessWithDebuggerAttached(startInfo.FileName, startInfo.WorkingDirectory, arguments: args,
+        environmentVariables: null);
+      process = Process.GetProcessById(pid);
+    }
+    else
+    {
+      if (process != null)
+        throw new InvalidOperationException("Trying to launch session while one is already ongoing.");
+
+      startInfo.Arguments = args;
+      process = Process.Start(startInfo);
+    }
 
     if (process is null)
     {
@@ -71,8 +104,6 @@ internal sealed class TestSession : IDisposable
 
     using TcpClient client = await listener.AcceptTcpClientAsync(cts.Token);
     using StreamReader reader = new(client.GetStream());
-    var testsByName = tests.ToDictionary(test => test.DisplayName, test => test);
-
     while (await reader.ReadLineAsync(cts.Token) is { } payload)
     {
       var testEvent = JsonSerializer.Deserialize<TestMessage>(payload);
@@ -84,8 +115,10 @@ internal sealed class TestSession : IDisposable
 
       if (!testsByName.TryGetValue(testEvent.FullName, out TestCase testCase))
       {
-        await Console.Error.WriteLineAsync($"No test found matching {testEvent.FullName}");
-        continue;
+        testCase = new TestCase(testEvent.FullName, new Uri(AdapterInfo.ExecutorUri), testEvent.Source)
+        {
+          DisplayName = testEvent.Name
+        };
       }
       handle.RecordResult(ToTestResult(testEvent, testCase));
     }
@@ -110,23 +143,26 @@ internal sealed class TestSession : IDisposable
     };
   }
 
-  private void LaunchGame(int port, string sessionId)
+  private string GetCommandLineArgs(int port, string sessionId)
   {
-    if (process != null)
-      throw new InvalidOperationException("Trying to launch session while one is already ongoing.");
-
-    startInfo.ArgumentList.Add("--pid");
-    startInfo.ArgumentList.Add(packageId);
-    startInfo.ArgumentList.Add("--test");
-    startInfo.ArgumentList.Add("--test-list");
-    startInfo.ArgumentList.Add(testListPath);
-    startInfo.ArgumentList.Add("--exit");
-    startInfo.ArgumentList.Add("--port");
-    startInfo.ArgumentList.Add(port.ToString());
-    startInfo.ArgumentList.Add("--session");
-    startInfo.ArgumentList.Add(sessionId);
-    startInfo.ArgumentList.Add("-NoWindow");
-    process = Process.Start(startInfo);
+    StringBuilder argBuilder = new();
+    argBuilder.Append($" --pid \"{packageId}\"");
+    argBuilder.Append(" --test");
+    argBuilder.Append($" --port {port} --session {sessionId}");
+    argBuilder.Append(" --exit");
+    switch (settings.Mode)
+    {
+      case RunSettings.WindowMode.NoWindow:
+        argBuilder.Append(" -NoWindow");
+        break;
+      case RunSettings.WindowMode.Headless:
+        argBuilder.Append(" -Headless");
+        break;
+      case RunSettings.WindowMode.Minimized:
+      case RunSettings.WindowMode.Windowed:
+        break;
+    }
+    return $"{argBuilder} {string.Join(" ", arguments)}";
   }
 
   public void Stop()
@@ -149,5 +185,18 @@ internal sealed class TestSession : IDisposable
     {
       Console.Error.WriteLine("Failed to kill process, it may be orphaned.");
     }
+  }
+
+  public void Dispose()
+  {
+    if (process is { HasExited: false })
+    {
+      Kill();
+    }
+    OnSessionEnd?.Invoke();
+    cts?.Dispose();
+    cts = null;
+    process?.Dispose();
+    process = null;
   }
 }

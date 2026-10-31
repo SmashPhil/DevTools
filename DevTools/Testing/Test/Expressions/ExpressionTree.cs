@@ -13,34 +13,9 @@ public class ExpressionTree
   private Node root;
   private Expression.Boolean? nextBoolean;
 
-  internal IEnumerable<(ITestFixture group, List<ITestFunction> functions)> GetFilteredTests(
-    ITestManager testManager)
+  internal bool Filter(ITestFixture fixture, ITestFunction function)
   {
-    if (root == null)
-    {
-      var groups = testManager.TestFixtures
-        .OrderBy(group => group, TestFixtureComparer.Default)
-        .ThenBy(group => group, TestCaseComparer.Default)
-        .Select(group => (group, group.TestFunctions.ToList()));
-      foreach ((ITestFixture, List<ITestFunction>) group in groups)
-      {
-        yield return group;
-      }
-      yield break;
-    }
-
-    foreach (ITestFixture group in testManager.TestFixtures.OrderBy(group => group.Type.Assembly)
-               .ThenBy(group => group, TestFixtureComparer.Default))
-    {
-      List<ITestFunction> matches = [];
-      foreach (ITestFunction function in group.TestFunctions)
-      {
-        if (root.Evaluate(group, function))
-          matches.Add(function);
-      }
-      if (matches.Count > 0)
-        yield return (group, matches);
-    }
+    return root?.Evaluate(fixture, function) ?? true;
   }
 
   public void Add(Expression expression, Comparison comparison, string value)

@@ -20,7 +20,9 @@ internal sealed class RunSettings
 
   public string ExePath { get; private set; }
 
-  public bool AutoRecacheOnBuild { get; private set; }
+  public bool AutoRecacheOnBuild { get; private set; } = true;
+
+  public WindowMode Mode { get; private set; } = WindowMode.NoWindow;
 
   private void LoadFromXml()
   {
@@ -29,9 +31,6 @@ internal sealed class RunSettings
       throw new InvalidOperationException("Run settings are required to launch RimWorld.");
 
     XElement parameters = XDocument.Parse(xml).Root?.Element("TestRunParameters");
-    PackageId = null;
-    ExePath = null;
-    AutoRecacheOnBuild = true;
     if (parameters != null)
     {
       foreach (XElement parameter in parameters.Elements("Parameter"))
@@ -49,6 +48,14 @@ internal sealed class RunSettings
               throw new InvalidOperationException("DevTools.AutoRecacheOnBuild must be true or false.");
             AutoRecacheOnBuild = autoRecacheOnBuild;
             break;
+          case "DevTools.WindowMode":
+            if (!Enum.TryParse(parameter.Attribute("value")?.Value, out WindowMode mode))
+            {
+              throw new InvalidOperationException(
+                $"DevTools.Mode must map to a valid enum value: {string.Join(", ", Enum.GetNames<WindowMode>())}");
+            }
+            Mode = mode;
+            break;
         }
       }
     }
@@ -61,5 +68,13 @@ internal sealed class RunSettings
     ExePath = Environment.ExpandEnvironmentVariables(ExePath);
     if (!Path.IsPathFullyQualified(ExePath) || !File.Exists(ExePath))
       throw new FileNotFoundException("RimWorld executable not found.", ExePath);
+  }
+
+  public enum WindowMode
+  {
+    Windowed,
+    Minimized,
+    NoWindow,
+    Headless
   }
 }

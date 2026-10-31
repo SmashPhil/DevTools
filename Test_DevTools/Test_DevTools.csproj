@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Authors>Smash Phil</Authors>
+    <RootNamespace>DevTools</RootNamespace>
+    <AssemblyName>Test_DevTools</AssemblyName>
+    <OutDir>$(ModDir)\1.7\Assemblies\</OutDir>
+    <UseRimWorldRefs>true</UseRimWorldRefs>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony.Ref" Version="2.4.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+
+    <Reference Include="DevTools">
+      <HintPath>$(OutDir)\DevTools.dll</HintPath>
+    </Reference>
+
+    <ProjectReference Include="$(ModDir)\DevTools\DevTools.Analyzer\DevTools.Analyzer.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

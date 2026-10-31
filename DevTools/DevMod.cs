@@ -1,7 +1,9 @@
-﻿using System.Threading;
+﻿using System;
+using System.Collections;
 using DevTools.Testing;
 using HarmonyLib;
 using JetBrains.Annotations;
+using UnityEngine;
 using Verse;
 
 namespace DevTools;
@@ -13,43 +15,49 @@ internal sealed class DevMod : Mod
   {
     if (GenCommandLine.TryGetCommandLineArg("--test-discovery", out string packageId))
     {
-      LongEventHandler.ExecuteWhenFinished(() => DiscoverTestsAndShutdown(packageId));
+      LongEventHandler.ExecuteWhenFinished(() => GenerateTestManifest(packageId));
     }
   }
 
-  private static void DiscoverTestsAndShutdown(string packageId)
+  private static void GenerateTestManifest(string packageId)
   {
-    ExecuteAtMainMenu.Start(packageId);
-  }
+    GameObject tempCoroutine = new("TempCoroutine");
+    var builder = tempCoroutine.AddComponent<ManifestBuilder>();
+    builder.StartCoroutine(Execute(packageId));
+    return;
 
-  private class ExecuteAtMainMenu
-  {
-    private readonly string packageId;
-
-    private ExecuteAtMainMenu(string packageId)
-    {
-      this.packageId = packageId;
-    }
-
-    public static void Start(string packageId)
-    {
-      ExecuteAtMainMenu exec = new(packageId);
-      Thread thread = new(exec.Execute) { IsBackground = true };
-      thread.Start();
-    }
-
-    private void Execute()
+    static IEnumerator Execute(string packageId)
     {
       do
       {
-        Thread.Sleep(200);
+        yield return null;
       } while (LongEventHandler.AnyEventNowOrWaiting ||
                !typeof(Root_Entry).StaticFieldRefAccess<bool>("globalInitDone"));
 
-      ModsConfig.Save();
-      ITestManager manager = DevHarmony.GetDevTool<TestFixtureManager>(packageId);
-      manager.SaveMetaData();
-      Root.Shutdown();
+      try
+      {
+        ModsConfig.Save();
+        ITestManager manager = DevHarmony.GetDevTool<TestFixtureManager>(packageId);
+        manager.SaveMetaData();
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"Exception thrown while generating manifest: {ex}");
+      }
+      finally
+      {
+        // Vanilla QuitAfterBoot waits 3 seconds before exiting for whatever reason. But waiting
+        // that long after test discovery is pointless.
+        if (GenCommandLine.CommandLineArgPassed("-QuitAfterBoot"))
+        {
+          Root.Shutdown();
+        }
+      }
     }
+  }
+
+  [UsedImplicitly]
+  private class ManifestBuilder : MonoBehaviour
+  {
   }
 }

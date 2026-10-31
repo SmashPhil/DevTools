@@ -47,6 +47,11 @@ public static class Test
     ActiveSession.Pop();
   }
 
+  public static ITestGroup GetEntry([NotNull] ITestModule module)
+  {
+    return CurrentCache.Get(module);
+  }
+
   public static ITestGroup GetEntry([NotNull] ITestCase testCase)
   {
     return CurrentCache.Get(testCase);
@@ -72,15 +77,15 @@ public static class Test
     Expect.SendSignal(Status.Failed, "Test.Fail", message, failureMessage);
   }
 
-  public static void Fail(Exception ex)
+  public static void Fail([NotNull] Exception ex)
   {
     ITestGroup current = Current;
     var exception = ex.InnerException ?? ex;
     current.Exception ??= exception;
     Expect.SendSignal(Status.Failed,
       context: "Exception thrown!",
-      message: null,
-      stackTrace: exception?.StackTrace);
+      message: exception.Message,
+      stackTrace: exception.StackTrace);
   }
 
   public static IEnumerator Suspend(float secondsTimeOut, string message = null)
@@ -142,7 +147,7 @@ public static class Test
       if (group.Status is Status.Failed)
       {
         DevLog.Write(message);
-        string stackTrace = group.Exception?.StackTrace ?? group.StackTrace?.ToString();
+        string stackTrace = group.Exception?.StackTrace ?? group.StackTrace;
         if (!stackTrace.NullOrEmpty())
         {
           DevLog.Write(stackTrace);
@@ -283,7 +288,7 @@ public static class Test
 
     public IEnumerable<ITestGroup> AssemblyGroups => moduleData.Values;
 
-    private TestData GetModuleGroup(ITestCase testCase)
+    private TestData GetOrAddModuleGroup(ITestCase testCase)
     {
       ITestModule module = testCase.Module;
       if (!tests.TryGetValue(module, out var moduleDict))
@@ -298,8 +303,7 @@ public static class Test
 
     public TestData GetOrAdd(ITestCase testCase)
     {
-      // NOTE: GetModuleGroup ensures test dict is cached, could be refactored for scope.
-      TestData moduleGroup = GetModuleGroup(testCase);
+      TestData moduleGroup = GetOrAddModuleGroup(testCase);
       var assemblyTests = tests[testCase.Module];
       if (!assemblyTests.TryGetValue(testCase, out TestData testGroup))
       {
@@ -323,6 +327,11 @@ public static class Test
         }
       }
       return testGroup;
+    }
+
+    public TestData Get(ITestModule module)
+    {
+      return moduleData.TryGetValue(module);
     }
 
     public TestData Get(ITestCase testCase)

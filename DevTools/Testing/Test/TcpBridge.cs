@@ -32,11 +32,13 @@ internal class TcpBridge : IDisposable
     {
       SessionId = sessionId,
       MessageType = MessageType.TestResult,
+      Name = function.Name,
       FullName = function.FullName,
       Status = function.Status,
       Duration = group.Duration.ElapsedMilliseconds,
       Message = group.FailMessage,
-      StackTrace = group.StackTrace?.ToString()
+      StackTrace = group.StackTrace,
+      Source = function.Module.Source
     }));
   }
 

@@ -51,7 +51,7 @@ internal static class DataWriter<T> where T : IJsonSerializable
   public static void Serialize(T serializable)
   {
     string filePath = GetPath(serializable);
-    using FileStream stream = File.OpenWrite(filePath);
+    using FileStream stream = File.Create(filePath);
     
     JsonSerializer.Serialize(stream, serializable, serializable.Options);
   }
