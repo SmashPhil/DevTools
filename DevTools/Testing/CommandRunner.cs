@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DevTools.Testing;
+using UnityEngine;
 using Verse;
 
 namespace DevTools;
 
 internal static class CommandRunner
 {
+  private const int NothingToRunExitCode = 2;
+
   public static Result ExecuteCommandLineArgs(ModContentPack mod)
   {
     const string PackageIdArg = "--pid";
@@ -96,9 +99,13 @@ internal static class CommandRunner
           break;
       }
     }
-    if (!result.packageId.EqualsIgnoreCase(mod.PackageIdPlayerFacing))
+    if (result.packageId == null)
       return null;
 
+    if (!result.packageId.EqualsIgnoreCase(mod.PackageIdPlayerFacing))
+      return result;
+
+    result.mod = mod;
     ITestManager testManager = type switch
     {
       ManagerType.Unit => DevHarmony.GetDevTool<TestFixtureManager>(mod),
@@ -106,6 +113,24 @@ internal static class CommandRunner
       ManagerType.Plan => DevHarmony.GetDevTool<TestPlanManager>(mod),
       _ => throw new NotImplementedException(type.ToString())
     };
+    if (testManager == null)
+    {
+      string tests = type switch
+      {
+        ManagerType.Smoke => "smoke tests",
+        ManagerType.Plan => "test plans",
+        _ => "unit tests"
+      };
+      NothingToRun(result, $"{mod.PackageIdPlayerFacing} has no {tests}.");
+      return result;
+    }
+    if (type == ManagerType.Plan && result.Filter == null)
+    {
+      NothingToRun(result, result.TestPlan != null
+        ? $"{mod.PackageIdPlayerFacing} has no test plan named {result.TestPlan}."
+        : $"{RunPlanArg} needs the name of a plan.");
+      return result;
+    }
 
     TestRunner testRunner = new(testManager);
     if (result.Filter != null)
@@ -114,11 +139,31 @@ internal static class CommandRunner
     }
     if (!result.Expression.NullOrEmpty())
     {
-      testRunner.AddFilter(new ExpressionFilter(result.Expression).Filter);
+      ExpressionFilter expressionFilter;
+      try
+      {
+        expressionFilter = new ExpressionFilter(result.Expression);
+      }
+      catch (Exception ex)
+      {
+        NothingToRun(result, $"Unable to parse filter {result.Expression}. {ex.Message}");
+        return result;
+      }
+      testRunner.AddFilter(expressionFilter.Filter);
     }
     if (!result.TestListFile.NullOrEmpty())
     {
-      testRunner.AddFilter(LoadTestList(result.TestListFile));
+      TestFilter listFilter;
+      try
+      {
+        listFilter = LoadTestList(result.TestListFile);
+      }
+      catch (Exception ex)
+      {
+        NothingToRun(result, $"Unable to read test file {result.TestListFile}. {ex.Message}");
+        return result;
+      }
+      testRunner.AddFilter(listFilter);
     }
     if (result.port != null && !result.sessionId.NullOrEmpty())
     {
@@ -143,6 +188,16 @@ internal static class CommandRunner
     }
   }
 
+  public static void NothingToRun(Result result, string reason)
+  {
+    Log.Error(reason);
+    DevLog.Write(reason);
+    if (result.exitOnFinish)
+    {
+      Application.Quit(NothingToRunExitCode);
+    }
+  }
+
   private enum ManagerType
   {
     Unit,
@@ -153,6 +208,7 @@ internal static class CommandRunner
   public record Result
   {
     public string packageId;
+    public ModContentPack mod;
     public bool hideWindow;
     public bool exitOnFinish;
     public bool headless;

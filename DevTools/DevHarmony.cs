@@ -113,8 +113,12 @@ internal static class DevHarmony
     foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
     {
       Args = CommandRunner.ExecuteCommandLineArgs(mod);
-      if (Args != null)
+      if (Args == null || Args.mod != null)
         break;
+    }
+    if (Args is { mod: null })
+    {
+      CommandRunner.NothingToRun(Args, $"No loaded mod has the package id {Args.packageId}.");
     }
   }
 
