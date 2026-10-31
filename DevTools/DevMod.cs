@@ -5,6 +5,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
 using Verse;
+using Waylith.Audio;
 
 namespace DevTools;
 
@@ -16,6 +17,10 @@ internal sealed class DevMod : Mod
     if (GenCommandLine.TryGetCommandLineArg("--test-discovery", out string packageId))
     {
       LongEventHandler.ExecuteWhenFinished(() => GenerateTestManifest(packageId));
+    }
+    if (GenCommandLine.CommandLineArgPassed("--no-audio"))
+    {
+      AudioBackend.Current?.SetOutputPaused(true);
     }
   }
 

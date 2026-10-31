@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using Verse;
@@ -17,8 +16,7 @@ namespace DevTools;
 [PublicAPI]
 public readonly struct RandBlockPersistent : IDisposable
 {
-  private static readonly FieldInfo RandSeedField;
-
+  private static readonly AccessTools.FieldRef<uint> randSeed;
   /// <summary>
   /// The previously stored RNG seed to restore on disposal.
   /// </summary>
@@ -26,7 +24,7 @@ public readonly struct RandBlockPersistent : IDisposable
 
   static RandBlockPersistent()
   {
-    RandSeedField = AccessTools.Field(typeof(Rand), "seed");
+    randSeed = AccessTools.StaticFieldRefAccess<uint>(AccessTools.Field(typeof(Rand), "seed"));
   }
 
   /// <summary>
@@ -37,8 +35,8 @@ public readonly struct RandBlockPersistent : IDisposable
   public RandBlockPersistent(uint seed)
   {
     Rand.EnsureStateStackEmpty();
-    prevSeed = (uint)RandSeedField.GetValue(null);
-    RandSeedField.SetValue(null, seed);
+    prevSeed = randSeed.Invoke();
+    randSeed.Invoke() = seed;
   }
 
   /// <summary>
@@ -46,6 +44,6 @@ public readonly struct RandBlockPersistent : IDisposable
   /// </summary>
   void IDisposable.Dispose()
   {
-    RandSeedField.SetValue(null, prevSeed);
+    randSeed.Invoke() = prevSeed;
   }
 }

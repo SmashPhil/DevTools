@@ -131,7 +131,7 @@ public sealed class TestRunner
     // to write to the test log.
     using DevLog.Enabler logEnabler = new(config.LogConfig);
     using Test.SessionScope session = new(testManager);
-    using TestEnabler ute = new(this);
+    using TestEnabler enabler = new(this);
 
     // Running unit tests from command line will jump into this coroutine before Root.Start has a 
     // chance to run. Skip 1 frame so all Root fields have a chance to initialize.

@@ -153,7 +153,7 @@ internal sealed class TestSession : IDisposable
     switch (settings.Mode)
     {
       case RunSettings.WindowMode.NoWindow:
-        argBuilder.Append(" -NoWindow");
+        argBuilder.Append(" -NoWindow --no-audio");
         break;
       case RunSettings.WindowMode.Headless:
         argBuilder.Append(" -Headless");
