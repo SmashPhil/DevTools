@@ -25,7 +25,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseKrafsPackageRef>true</UseKrafsPackageRef>
 
-    <ModDir>$(MSBuildThisFileDirectory)\..\</ModDir>
+    <ModDir>$(MSBuildThisFileDirectory)..\</ModDir>
     <RefDir>$([MSBuild]::NormalizeDirectory('$(ModDir)', '..', '..'))</RefDir>
     <RefDir Condition="Exists('$(RefDir)RimWorld.app\Contents\MacOS\Assembly-CSharp.dll')">$(RefDir)RimWorld.app\Contents\MacOS\</RefDir>
 	  <RunSettingsFilePath>$(ModDir).runsettings</RunSettingsFilePath>
