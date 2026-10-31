@@ -236,7 +236,8 @@ public sealed class TestDiscoverer : ITestDiscoverer
       CreateNoWindow = false,
       WindowStyle = ProcessWindowStyle.Normal
     };
-    startInfo.ArgumentList.Add($"--test-discovery={settings.PackageId} -QuitAfterBoot");
+    startInfo.ArgumentList.Add($"--test-discovery={settings.PackageId}");
+    startInfo.ArgumentList.Add("-QuitAfterBoot");
     startInfo.ArgumentList.Add("-Headless");
     using Process process = Process.Start(startInfo);
     process?.WaitForExit();
