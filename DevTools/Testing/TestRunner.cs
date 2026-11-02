@@ -181,6 +181,12 @@ public sealed class TestRunner
         // Scene change for test type
         bool hasSaveFile = !fixture.SaveFile.NullOrEmpty();
         bool needsRegen = fxtSettings.NeedsReload || restoreEnvironment;
+        bool sceneChangeFailed = false;
+        Action<Exception> onSceneChangeException = ex =>
+        {
+          Test.Fail(ex);
+          sceneChangeFailed = true;
+        };
         if (currentTestType != fixture.TestType || hasSaveFile || needsRegen)
         {
           currentTestType = fixture.TestType;
@@ -191,18 +197,19 @@ public sealed class TestRunner
               Log.Warning($"Fixture {fixture.Name} has custom settings for game generation, " +
                           $"but is configured to load a save file.");
             }
-            yield return LoadSaveRoutine(fixture.SaveFile);
+            yield return GuardedRoutine.Run(LoadSaveRoutine(fixture.SaveFile), onSceneChangeException);
           }
           else
           {
-            yield return ChangeSceneRoutine(currentTestType, fixture, fxtSettings);
+            yield return GuardedRoutine.Run(ChangeSceneRoutine(currentTestType, fixture, fxtSettings),
+              onSceneChangeException);
           }
         }
 
         // Restore default test environment if this fixture loaded a save or has custom game settings.
-        restoreEnvironment = hasSaveFile || fxtSettings.NeedsReload;
+        restoreEnvironment = sceneChangeFailed || hasSaveFile || fxtSettings.NeedsReload;
 
-        if (currentTestType != fixture.TestType)
+        if (sceneChangeFailed)
         {
           Test.Fail($"Unable to transition scene to {fixture.TestType}");
           foreach (ITestFunction function in functions)
@@ -210,6 +217,7 @@ public sealed class TestRunner
             using Test.Scope fns = new(function);
             Test.Current.Status = Status.Skipped;
           }
+          Test.LogResults(fixture, functions);
           continue;
         }
 
