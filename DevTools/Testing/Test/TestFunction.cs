@@ -72,27 +72,19 @@ internal class TestFunction : ITestFunction
 
   public IEnumerator ExecuteRoutine(object instance)
   {
+    return ExecuteRoutine(instance, Test.Fail);
+  }
+
+  internal IEnumerator ExecuteRoutine(object instance, Action<Exception> onException)
+  {
+    return GuardedRoutine.Run(InvokeRoutine(instance), onException);
+  }
+
+  private IEnumerator InvokeRoutine(object instance)
+  {
     Assert.AreEqual(MethodInfo.ReturnType, typeof(IEnumerator));
     IEnumerator enumerator = (IEnumerator)MethodInfo.Invoke(instance, Args);
-    if (enumerator == null)
-      yield break;
-
-    while (true)
-    {
-      object current;
-      try
-      {
-        if (!enumerator.MoveNext())
-          break;
-
-        current = enumerator.Current;
-      }
-      catch (Exception ex)
-      {
-        Test.Fail(ex);
-        yield break;
-      }
-      yield return current;
-    }
+    if (enumerator != null)
+      yield return enumerator;
   }
 }
