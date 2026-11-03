@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using DevTools.Testing.Utils;
 using JetBrains.Annotations;
 using RimWorld;
 using RimWorld.Planet;
@@ -404,7 +405,7 @@ public sealed class TestRunner
         if (settings.NeedsReload)
         {
           // For post-game tests that require specific game generation settings and test at the main menu after exiting.
-          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings,
+          yield return GameGen.GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings,
             settings.mapGen ?? config.MapSettings, scenario: null, storyteller: null);
           yield return LoadMainMenu();
         }
@@ -417,12 +418,12 @@ public sealed class TestRunner
         if (mapGenOnly && Verse.Current.ProgramState == ProgramState.Playing)
         {
           // Map only regen
-          yield return GenerateMapRoutine(settings.mapGen);
+          yield return GameGen.GenerateMapRoutine(settings.mapGen);
         }
         else
         {
           // Full world regen
-          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
+          yield return GameGen.GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
             settings.scenario, settings.storyteller);
         }
         break;
@@ -431,7 +432,7 @@ public sealed class TestRunner
       {
         if (settings.NeedsReload || Verse.Current.ProgramState != ProgramState.Playing)
         {
-          yield return GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
+          yield return GameGen.GenerateWorldRoutine(settings.worldGen ?? config.WorldSettings, settings.mapGen ?? config.MapSettings,
             scenario: null, storyteller: null);
         }
         yield return LoadMainMenu();
@@ -451,58 +452,6 @@ public sealed class TestRunner
     }
   }
 
-  private IEnumerator GenerateWorldRoutine(WorldGenerationSettings worldGenSettings,
-    MapGenerationSettings mapGenSettings, [CanBeNull] Scenario scenario, [CanBeNull] Storyteller storyteller)
-  {
-    using GenStepWarningDisabler disabler = new();
-    GenerateWorld(worldGenSettings, mapGenSettings, scenario, storyteller);
-    yield return WaitTillLoaded(ProgramState.Playing);
-
-    // Skip 1 extra frame to allow for game to execute its single tick on load
-    yield return null;
-
-    currentMap = Find.CurrentMap ?? Find.Maps.FirstOrFallback();
-    if (currentMap == null)
-    {
-      Log.Warning("Failed to generate map after creating world.");
-      yield return GenerateMapRoutine(mapGenSettings);
-    }
-    else
-    {
-      if (!mapGenSettings.postGenerationActions.NullOrEmpty())
-      {
-        foreach (Action action in mapGenSettings.postGenerationActions)
-        {
-          action();
-        }
-      }
-      Verse.Current.Game.CurrentMap = currentMap;
-    }
-  }
-
-  private IEnumerator GenerateMapRoutine(MapGenerationSettings mapGenSettings)
-  {
-    if (currentMap != null)
-    {
-      Verse.Current.Game.DeinitAndRemoveMap(currentMap, notifyPlayer: false);
-    }
-    using GenStepWarningDisabler disabler = new();
-    currentMap = GenerateMap(mapGenSettings);
-    yield return WaitTillLoaded(ProgramState.Playing);
-
-    // Skip 1 extra frame to allow for game to render single frame, otherwise gpu buffer keeps stacking frames.
-    yield return null;
-
-    Verse.Current.Game.CurrentMap = currentMap;
-
-    if (!mapGenSettings.postGenerationActions.NullOrEmpty())
-    {
-      foreach (Action action in mapGenSettings.postGenerationActions)
-      {
-        action();
-      }
-    }
-  }
 
   private IEnumerator WaitTillLoaded(ProgramState programState)
   {
@@ -529,7 +478,7 @@ public sealed class TestRunner
     LongEventHandler.QueueLongEvent(delegate
     {
       Verse.Current.Game?.Dispose();
-      InitGame(worldGenSettings, mapGenSettings, scenario, storyteller);
+      GameGen.InitGame(worldGenSettings, mapGenSettings, scenario, storyteller);
       LongEventHandler.QueueLongEvent(delegate
       {
         Find.GameInitData.PrepForMapGen();
@@ -588,47 +537,6 @@ public sealed class TestRunner
       }
       return nextBest;
     }
-  }
-
-  private static void InitGame(WorldGenerationSettings worldGenSettings,
-    MapGenerationSettings mapGenSettings, Scenario scenario = null, Storyteller storyteller = null)
-  {
-    MemoryUtility.ClearAllMapsAndWorld();
-    Game game = new();
-    GameInitData gameInitData = new()
-    {
-      startingSeason = worldGenSettings.startingSeason,
-      startingPawnsRequired = worldGenSettings.startingPawnsRequired,
-      startingXenotypesRequired = worldGenSettings.startingXenotypesRequired,
-      startingMutantsRequired = worldGenSettings.startingMutantsRequired,
-      allowedDevelopmentalStages = worldGenSettings.allowedDevelopmentalStages,
-      startingSkillsRequired = worldGenSettings.startingSkillsRequired
-    };
-
-    if (mapGenSettings != null)
-    {
-      gameInitData.mapSize = mapGenSettings.size;
-      gameInitData.mapGeneratorDef = mapGenSettings.mapGeneratorDef;
-    }
-
-    Verse.Current.ProgramState = ProgramState.Entry;
-    Game.ClearCaches();
-    Verse.Current.Game = game;
-    Verse.Current.Game.InitData = gameInitData;
-    Verse.Current.Game.Scenario = scenario ?? ScenarioDefOf.Crashlanded.scenario;
-    Find.Scenario.PreConfigure();
-    Verse.Current.Game.storyteller = storyteller ?? new Storyteller(StorytellerDefOf.Cassandra, DifficultyDefOf.Rough);
-    Verse.Current.Game.World = WorldGenerator.GenerateWorld(worldGenSettings.percent,
-      GenText.RandomSeedString(),
-      worldGenSettings.rainfall, worldGenSettings.temperature, worldGenSettings.population,
-      worldGenSettings.landmarkDensity);
-    Find.GameInitData.ChooseRandomStartingTile();
-    if (mapGenSettings?.biome != null)
-    {
-      Find.WorldGrid[Find.GameInitData.startingTile].PrimaryBiome = mapGenSettings.biome;
-    }
-
-    Find.Scenario.PostIdeoChosen();
   }
 
   private void FailTestWhileTransitioning(Exception ex)
