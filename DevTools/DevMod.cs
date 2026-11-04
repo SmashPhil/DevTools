@@ -5,7 +5,9 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
 using Verse;
+using Verse.Steam;
 using Waylith.Audio;
+using Waylith.UnityCompat;
 
 namespace DevTools;
 

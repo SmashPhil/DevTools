@@ -3,178 +3,156 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DevTools.Testing;
-using UnityEngine;
 using Verse;
 
 namespace DevTools;
 
 internal static class CommandRunner
 {
-  private const int NothingToRunExitCode = 2;
+  private const string PackageIdArg = "--pid";
 
-  public static Result ExecuteCommandLineArgs(ModContentPack mod)
+  private const string RunTestsArg = "--test";
+  private const string FilterArg = "--filter";
+  private const string WhereArg = "--where";
+
+  private const string RunPlanArg = "--test-plan";
+  private const string RunListArg = "--test-file";
+  private const string SmokeTestArg = "--smoke-test";
+
+  private const string RunTestsShort = "-t";
+  private const string WhereShort = "-w";
+  private const string RunPlanShort = "-p";
+  private const string SmokeTestShort = "-s";
+
+  private const string ExitAtEndArg = "--exit";
+  private const string ExitAtEndShort = "-e";
+  private const string PortArg = "--port";
+  private const string SessionArg = "--session";
+
+  // Waylith
+  private const string NoWindow = "-NoWindow";
+  private const string Headless = "-Headless";
+
+  public static Args ProcessCommandLineArgs()
   {
-    const string PackageIdArg = "--pid";
-
-    const string RunTestsArg = "--test";
-    const string FilterArg = "--filter";
-    const string WhereArg = "--where";
-
-    const string RunPlanArg = "--test-plan";
-    const string RunListArg = "--test-file";
-    const string SmokeTestArg = "--smoke-test";
-
-    const string RunTestsShort = "-t";
-    const string WhereShort = "-w";
-    const string RunPlanShort = "-p";
-    const string SmokeTestShort = "-s";
-
-    const string ExitAtEndArg = "--exit";
-    const string ExitAtEndShort = "-e";
-    const string PortArg = "--port";
-    const string SessionArg = "--session";
-
-    // Waylith
-    const string NoWindow = "-NoWindow";
-    const string Headless = "-Headless";
-
-    ManagerType type = ManagerType.Unit;
-    string[] args = Environment.GetCommandLineArgs();
-    if (args.Length == 0)
+    string[] argsStr = Environment.GetCommandLineArgs();
+    if (argsStr is not { Length: > 0 })
       return null;
 
-    Result result = new();
-    for (int i = 0; i < args.Length; i++)
+    Args args = new();
+    for (int i = 0; i < argsStr.Length; i++)
     {
-      string arg = args[i];
+      string arg = argsStr[i];
       switch (arg)
       {
         case PackageIdArg:
-          if (i + 1 < args.Length)
-            result.packageId = args[++i];
+          if (i + 1 < argsStr.Length)
+            args.packageIds = argsStr[++i].Split(';');
           break;
         case RunTestsArg or RunTestsShort:
-          type = ManagerType.Unit;
+          args.ManagerType = ManagerType.Unit;
           break;
         case SmokeTestArg or SmokeTestShort:
-          type = ManagerType.Smoke;
+          args.ManagerType = ManagerType.Smoke;
           break;
         case RunPlanArg or RunPlanShort:
-          type = ManagerType.Plan;
-          if (i + 1 < args.Length)
+          args.ManagerType = ManagerType.Plan;
+          if (i + 1 < argsStr.Length)
           {
-            result.LoadTestPlan(mod, args[++i]);
+            args.TestPlan = argsStr[++i];
           }
           break;
         case RunListArg:
-          result.TestListFile = args[++i];
+          args.TestListFile = argsStr[++i];
           break;
         case WhereArg or WhereShort or FilterArg:
-          if (i + 1 < args.Length)
-            result.Expression = args[++i];
+          if (i + 1 < argsStr.Length)
+            args.Expression = argsStr[++i];
           break;
         case ExitAtEndArg or ExitAtEndShort:
-          result.exitOnFinish = true;
+          args.exitOnFinish = true;
           break;
         case NoWindow:
-          result.hideWindow = true;
-          result.exitOnFinish = true;
+          args.hideWindow = true;
+          args.exitOnFinish = true;
           break;
         case Headless:
-          result.headless = true;
+          args.headless = true;
           break;
         case PortArg:
-          string portStr = args[++i];
+          string portStr = argsStr[++i];
           if (!int.TryParse(portStr, out int port))
           {
             Console.Error.WriteLine($"Unable to parse port {portStr}");
           }
           else
           {
-            result.port = port;
+            args.port = port;
           }
           break;
         case SessionArg:
-          result.sessionId = args[++i];
+          args.sessionId = argsStr[++i];
           break;
       }
     }
-    if (result.packageId == null)
+    return args;
+  }
+
+  public static TestRunner CreateRunner(ModContentPack mod, Args args)
+  {
+    if (!args.packageIds.Any(str => str.EqualsIgnoreCase(mod.PackageIdPlayerFacing)))
       return null;
 
-    if (!result.packageId.EqualsIgnoreCase(mod.PackageIdPlayerFacing))
-      return result;
-
-    result.mod = mod;
-    ITestManager testManager = type switch
+    ITestManager testManager = args.ManagerType switch
     {
       ManagerType.Unit => DevHarmony.GetDevTool<TestFixtureManager>(mod),
       ManagerType.Smoke => DevHarmony.GetDevTool<SmokeTestManager>(mod),
       ManagerType.Plan => DevHarmony.GetDevTool<TestPlanManager>(mod),
-      _ => throw new NotImplementedException(type.ToString())
+      _ => throw new NotImplementedException(args.ManagerType.ToString())
     };
     if (testManager == null)
     {
-      string tests = type switch
+      string tests = args.ManagerType switch
       {
         ManagerType.Smoke => "smoke tests",
         ManagerType.Plan => "test plans",
         _ => "unit tests"
       };
-      NothingToRun(result, $"{mod.PackageIdPlayerFacing} has no {tests}.");
-      return result;
+      Log.Error($"{mod.PackageIdPlayerFacing} has no {tests}.");
+      DevApplication.Exit(ExitCode.NoTests);
+      return null;
     }
-    if (type == ManagerType.Plan && result.Filter == null)
+    if (args.ManagerType is ManagerType.Plan && args.TestPlan == null)
     {
-      NothingToRun(result, result.TestPlan != null
-        ? $"{mod.PackageIdPlayerFacing} has no test plan named {result.TestPlan}."
+      Log.Error(args.TestPlan != null
+        ? $"{mod.PackageIdPlayerFacing} has no test plan named {args.TestPlan}."
         : $"{RunPlanArg} needs the name of a plan.");
-      return result;
+      DevApplication.Exit(ExitCode.NoTests);
+      return null;
     }
 
     TestRunner testRunner = new(testManager);
-    if (result.Filter != null)
+    if (!args.Expression.NullOrEmpty())
     {
-      testRunner.AddFilter(result.Filter);
+      testRunner.AddFilter(new ExpressionFilter(args.Expression).Filter);
     }
-    if (!result.Expression.NullOrEmpty())
+    if (!args.TestPlan.NullOrEmpty())
     {
-      ExpressionFilter expressionFilter;
-      try
+      TestPlan plan = DevHarmony.GetDevTool<TestPlanManager>(mod)?.FindPlan(args.TestPlan);
+      if (plan != null)
       {
-        expressionFilter = new ExpressionFilter(result.Expression);
+        testRunner.AddFilter(plan.Filter);
       }
-      catch (Exception ex)
-      {
-        NothingToRun(result, $"Unable to parse filter {result.Expression}. {ex.Message}");
-        return result;
-      }
-      testRunner.AddFilter(expressionFilter.Filter);
     }
-    if (!result.TestListFile.NullOrEmpty())
+    if (!args.TestListFile.NullOrEmpty())
     {
-      TestFilter listFilter;
-      try
-      {
-        listFilter = LoadTestList(result.TestListFile);
-      }
-      catch (Exception ex)
-      {
-        NothingToRun(result, $"Unable to read test file {result.TestListFile}. {ex.Message}");
-        return result;
-      }
-      testRunner.AddFilter(listFilter);
-    }
-    if (result.port != null && !result.sessionId.NullOrEmpty())
-    {
-      testRunner.AddTcpConnection(result.port.Value, result.sessionId);
+      testRunner.AddFilter(LoadTestList(args.TestListFile));
     }
     if (testManager is { Config: ITestActions testActions })
     {
       testRunner.AddTestActions(testActions);
     }
-    testRunner.Run();
-    return result;
+    return testRunner;
 
     static TestFilter LoadTestList(string filePath)
     {
@@ -188,27 +166,16 @@ internal static class CommandRunner
     }
   }
 
-  public static void NothingToRun(Result result, string reason)
-  {
-    Log.Error(reason);
-    DevLog.Write(reason);
-    if (result.exitOnFinish)
-    {
-      Application.Quit(NothingToRunExitCode);
-    }
-  }
-
-  private enum ManagerType
+  public enum ManagerType
   {
     Unit,
     Smoke,
     Plan
   }
 
-  public record Result
+  public record Args
   {
-    public string packageId;
-    public ModContentPack mod;
+    public string[] packageIds;
     public bool hideWindow;
     public bool exitOnFinish;
     public bool headless;
@@ -216,20 +183,12 @@ internal static class CommandRunner
     public int? port;
     public string sessionId;
 
+    public ManagerType ManagerType { get; set; } = ManagerType.Unit;
+
     public string Expression { get; set; }
 
-    public string TestPlan { get; private set; }
+    public string TestPlan { get; set; }
 
     public string TestListFile { get; set; }
-
-    public TestFilter Filter { get; private set; }
-
-    public void LoadTestPlan(ModContentPack mod, string name)
-    {
-      TestPlan = name;
-      TestPlan plan = DevHarmony.GetDevTool<TestPlanManager>(mod)?.FindPlan(name);
-      // Can't use null conditional, method group conversion causes compiler error.
-      Filter = plan != null ? new TestFilter(plan.Filter) : null;
-    }
   }
 }

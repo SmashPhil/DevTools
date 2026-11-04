@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -7,25 +6,22 @@ using System.Text.Json;
 
 namespace DevTools.Testing;
 
-internal class TcpBridge : IDisposable
+internal sealed class TcpBridge : ITestRecorder, IDisposable
 {
+  private readonly int port;
   private readonly string sessionId;
-  private readonly TcpClient client;
-  private readonly StreamWriter writer;
-  private readonly Stopwatch stopwatch;
 
+  private TcpClient client;
+  private StreamWriter writer;
   private bool disposed;
 
-  public TcpBridge(int port, string sessionId, Stopwatch stopwatch)
+  public TcpBridge(int port, string sessionId)
   {
     this.sessionId = sessionId;
-    this.stopwatch = stopwatch;
-    client = new TcpClient();
-    client.Connect(IPAddress.Loopback, port);
-    writer = new StreamWriter(client.GetStream()) { AutoFlush = true };
+    this.port = port;
   }
 
-  public void SendResult(ITestFunction function)
+  void ITestRecorder.SendResult(ITestFunction function)
   {
     ITestGroup group = Test.GetEntry(function);
     writer.WriteLine(JsonSerializer.Serialize(new TestMessage
@@ -42,14 +38,22 @@ internal class TcpBridge : IDisposable
     }));
   }
 
-  private void Stop()
+  void ITestRecorder.Start()
+  {
+    client = new TcpClient();
+    client.Connect(IPAddress.Loopback, port);
+    writer = new StreamWriter(client.GetStream()) { AutoFlush = true };
+  }
+
+  void ITestRecorder.Stop(long elapsedMilliseconds)
   {
     writer.WriteLine(JsonSerializer.Serialize(new TestMessage
     {
       SessionId = sessionId,
       MessageType = MessageType.SessionComplete,
-      Duration = stopwatch.ElapsedMilliseconds
+      Duration = elapsedMilliseconds
     }));
+    Dispose();
   }
 
   public void Dispose()
@@ -57,7 +61,6 @@ internal class TcpBridge : IDisposable
     if (disposed)
       return;
 
-    Stop();
     client.Dispose();
     writer.Dispose();
     disposed = true;

@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using DevTools.Benchmarking;
 using DevTools.Testing;
@@ -16,7 +18,7 @@ internal static class DevHarmony
 
   private static readonly Dictionary<ModContentPack, List<IDevTool>> ModDevTools = [];
 
-  public static CommandRunner.Result Args { get; private set; }
+  public static CommandRunner.Args Args { get; private set; }
 
   // NOTE: Initialize from SCOS so dev tools static constructors have access to Defs
   static DevHarmony()
@@ -108,17 +110,33 @@ internal static class DevHarmony
 
   private static void FinalizeInit()
   {
-    Args = null;
+    Args = CommandRunner.ProcessCommandLineArgs();
     // Run commands for matching pid only
+    List<TestRunner> runners = [];
     foreach (ModContentPack mod in LoadedModManager.RunningModsListForReading)
     {
-      Args = CommandRunner.ExecuteCommandLineArgs(mod);
-      if (Args == null || Args.mod != null)
+      try
+      {
+        if (CommandRunner.CreateRunner(mod, Args) is { } runner)
+        {
+          runners.Add(runner);
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"Exception thrown while executing CommandRunner for {mod.PackageIdPlayerFacing}.\n{ex}");
         break;
+      }
     }
+    ITestRecorder recorder = Args.port != null && !Args.sessionId.NullOrEmpty() ?
+      new TcpBridge(Args.port.Value, Args.sessionId) :
+      null;
+    TestRunner.RunAll(runners, recorder);
+
+    DevApplication.Exit(999); // TODO - exit code
     if (Args is { mod: null })
     {
-      CommandRunner.NothingToRun(Args, $"No loaded mod has the package id {Args.packageId}.");
+      CommandRunner.NothingToRun(Args, $"No loaded mod has the package id {Args.packageIds}.");
     }
   }
 

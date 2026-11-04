@@ -21,17 +21,12 @@ public delegate bool TestAction(ITestFixture group);
 public sealed class TestRunner
 {
   public readonly ITestManager testManager;
-
   private readonly List<StopOnTest> stopConditions = [];
-
   private readonly List<TestAction> preTestActions = [];
-
   private readonly List<TestAction> postTestActions = [];
 
-  private TestFilter testFilter = new();
 
-  private int tcpPort;
-  private string tcpSessionId;
+  private TestFilter testFilter = new();
   private Map currentMap;
   private TransitionState state = TransitionState.Idle;
 
@@ -51,7 +46,7 @@ public sealed class TestRunner
 
   public static TestRunner Current { get; private set; }
 
-  private bool StopRequested { get; set; }
+  private static bool StopRequested { get; set; }
 
   public void AddFilter(TestFilter filter)
   {
@@ -61,12 +56,6 @@ public sealed class TestRunner
   public void AddFilter(TestFilter.FilterFunc function)
   {
     testFilter += function;
-  }
-
-  public void AddTcpConnection(int port, string sessionId)
-  {
-    tcpPort = port;
-    tcpSessionId = sessionId;
   }
 
   public void AddTestActions(ITestActions testActions)
@@ -91,39 +80,39 @@ public sealed class TestRunner
     postTestActions.Add(testAction);
   }
 
-  public void Run()
+  public static void SignalToStop()
   {
+    if (Current != null)
+    {
+      StopRequested = true;
+    }
+  }
+
+  public void Run(ITestRecorder recorder = null)
+  {
+    RunAll([this], recorder);
+  }
+
+  public static void RunAll(List<TestRunner> runners, ITestRecorder recorder)
+  {
+    // Only 1 test routine can be active at a time. If multiple tests are ran at the same time, it
+    // would need to be in a separate process.
+    if (Active)
+    {
+      Log.Error("Trying to start test runner when one is already in progress.");
+      return;
+    }
     LongEventHandler.ExecuteWhenFinished(delegate
     {
-      // Only 1 test routine can be active at a time. Tests must run on the main thread due to 
-      // Unity's lack of thread safety. If multiple tests are ran at the same time, it would need
-      // to be in a separate process.
-      if (Active)
-      {
-        Log.Error("Trying to start test runner when one is already in progress.");
-        return;
-      }
-
       StopRequested = false;
-      CoroutineObject.Instance.StartCoroutine(TestRoutine(testFilter));
+      CoroutineObject.Instance.StartCoroutine(TestRoutine(runners, recorder));
     });
   }
 
-  public static void StopIfActive()
+  private static IEnumerator TestRoutine(List<TestRunner> runners, ITestRecorder recorder)
   {
-    Current?.SignalToStop();
-  }
-
-  public void SignalToStop()
-  {
-    StopRequested = true;
-  }
-
-  private IEnumerator TestRoutine(TestFilter filter)
-  {
-    Stopwatch stopwatch = new();
-    using var tcp = tcpPort != 0 ? new TcpBridge(tcpPort, tcpSessionId, stopwatch) : null;
-    stopwatch.Start();
+    recorder.Start();
+    Stopwatch stopwatch = Stopwatch.StartNew();
 
     ITestConfig config = testManager.Config;
     using ApplicationState appState = new();
@@ -140,11 +129,23 @@ public sealed class TestRunner
 
     uint seed = config.Seed ?? (uint)Rand.Int;
     using RandBlockPersistent randBlock = new(seed);
-
     testManager.OnTestRunnerStart();
 
     DevLog.Write($"Starting tests with seed: {seed}");
     DevLog.WriteLine();
+
+    foreach (TestRunner runner in runners)
+    {
+      if (StopRequested)
+        break;
+
+      yield return runner.TestRunnerRoutine(recorder);
+    }
+    recorder.Stop(stopwatch.ElapsedMilliseconds);
+  }
+
+  private IEnumerator TestRunnerRoutine(ITestRecorder recorder)
+  {
     TestType currentTestType = TestType.MainMenu;
     TestReport report = new();
 
@@ -153,7 +154,7 @@ public sealed class TestRunner
     // tests makes it easier for deciding when a test status can be overwritten by a new result,
     // such as premature skips / failures.
     // ReSharper disable PossibleMultipleEnumeration
-    var tests = filter.MatchesFrom(testManager.TestFixtures);
+    var tests = testFilter.MatchesFrom(testManager.TestFixtures);
     if (DevHarmony.Args is { exitOnFinish: true } args && !tests.Any())
     {
       CommandRunner.NothingToRun(args, "No tests matched the selection.");
@@ -289,7 +290,7 @@ public sealed class TestRunner
             } while (attempts <= maxRetries && function.Status is Status.Failed);
 
             report.Add(function);
-            tcp?.SendResult(function);
+            recorder?.SendResult(function);
 
             if (ShouldStop(function))
               break;
