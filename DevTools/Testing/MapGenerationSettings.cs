@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine.Assertions;
 using Verse;
 
@@ -45,7 +46,10 @@ public class MapGenerationSettings
         ]
       }
     };
+    // Saves look this up by defName, so it has to be in the database.
+    DefDatabase<MapGeneratorDef>.Add(Default.mapGeneratorDef);
     Default.postGenerationActions.Add(ClearMap);
+    Default.postGenerationActions.Add(PassStartingPawnsToWorld);
   }
 
   // ----------- IMapGeneration-only settings -----------
@@ -94,6 +98,21 @@ public class MapGenerationSettings
         {
           thing.Destroy();
         }
+      }
+    }
+  }
+
+  /// <summary>
+  /// Keep the starting pawns as world pawns, the default map never spawns them and a save would lose them.
+  /// </summary>
+  private static void PassStartingPawnsToWorld()
+  {
+    foreach (Pawn pawn in Find.GameInfo.startingAndOptionalPawns)
+    {
+      if (!pawn.Spawned && !pawn.IsWorldPawn())
+      {
+        pawn.wasLeftBehindStartingPawn = true;
+        Find.WorldPawns.PassToWorld(pawn, PawnDiscardDecideMode.KeepForever);
       }
     }
   }
