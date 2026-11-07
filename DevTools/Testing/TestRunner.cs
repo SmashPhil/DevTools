@@ -323,9 +323,8 @@ public sealed class TestRunner
     }
 
     // Open test results at main menu
-    if (Verse.Current.ProgramState != ProgramState.Entry)
+    if (Verse.Current.ProgramState != ProgramState.Entry && TryGoToMainMenu())
     {
-      GenScene.GoToMainMenu();
       while (Verse.Current.ProgramState != ProgramState.Entry ||
         LongEventHandler.AnyEventNowOrWaiting)
       {
@@ -456,6 +455,20 @@ public sealed class TestRunner
     {
       GenScene.GoToMainMenu();
       yield return WaitTillLoaded(ProgramState.Entry);
+    }
+  }
+
+  private static bool TryGoToMainMenu()
+  {
+    try
+    {
+      GenScene.GoToMainMenu();
+      return true;
+    }
+    catch (Exception ex)
+    {
+      Log.Error($"Exception thrown while returning to the main menu after tests: {ex}");
+      return false;
     }
   }
 
