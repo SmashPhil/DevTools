@@ -46,7 +46,7 @@ public class MapGenerationSettings
         ]
       }
     };
-    // Saves look this up by defName, so it has to be in the database.
+    // Required to exist in DefDatabase for crossrefs if loading a test save.
     DefDatabase<MapGeneratorDef>.Add(Default.mapGeneratorDef);
     Default.postGenerationActions.Add(ClearMap);
     Default.postGenerationActions.Add(PassStartingPawnsToWorld);
