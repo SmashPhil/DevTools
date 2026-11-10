@@ -12,6 +12,12 @@ internal class LogWatcher : IDisposable
 {
   private static readonly ConcurrentDictionary<LogType, List<LogEntry>> LogCounts = [];
 
+  private static readonly (LogType logType, string packageId, string pattern)[] VanillaLogsAllowed =
+  [
+    // Ideo.ExposeData adds Funeral (no corpse) to non-classic ideoligions on load
+    (LogType.Warning, "Ludeon.RimWorld.Ideology", "^A hidden ritual precept was missing, adding: "),
+  ];
+
   private readonly ITestConfig config;
   private readonly ITestCase[] scopes;
 
@@ -82,7 +88,8 @@ internal class LogWatcher : IDisposable
   )
   {
     if (
-      config.LogContained(logType, logEntry.message)
+      VanillaLogAllowed(logType, logEntry.message)
+      || config.LogContained(logType, logEntry.message)
       || AllowedByScope(scopes, logType, logEntry.message)
     )
       return;
@@ -102,6 +109,16 @@ internal class LogWatcher : IDisposable
         );
         break;
     }
+  }
+
+  internal static bool VanillaLogAllowed(LogType logType, string message)
+  {
+    foreach ((LogType type, string packageId, string pattern) in VanillaLogsAllowed)
+    {
+      if (type == logType && ModsConfig.IsActive(packageId) && Regex.IsMatch(message, pattern))
+        return true;
+    }
+    return false;
   }
 
   private static bool AllowedByScope(ITestCase[] scopes, LogType logType, string message)
