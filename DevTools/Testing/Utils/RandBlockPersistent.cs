@@ -17,14 +17,22 @@ namespace DevTools;
 public readonly struct RandBlockPersistent : IDisposable
 {
   private static readonly AccessTools.FieldRef<uint> randSeed;
+  private static readonly AccessTools.FieldRef<uint> randIterations;
+
   /// <summary>
   /// The previously stored RNG seed to restore on disposal.
   /// </summary>
   private readonly uint prevSeed;
 
+  /// <summary>
+  /// The previously stored iterations with an empty state stack.
+  /// </summary>
+  private readonly uint prevIterations;
+
   static RandBlockPersistent()
   {
     randSeed = AccessTools.StaticFieldRefAccess<uint>(AccessTools.Field(typeof(Rand), "seed"));
+    randIterations = AccessTools.StaticFieldRefAccess<uint>(AccessTools.Field(typeof(Rand), "iterations"));
   }
 
   /// <summary>
@@ -36,7 +44,30 @@ public readonly struct RandBlockPersistent : IDisposable
   {
     Rand.EnsureStateStackEmpty();
     prevSeed = randSeed.Invoke();
+    prevIterations = randIterations.Invoke();
+
     randSeed.Invoke() = seed;
+    randIterations.Invoke() = 0;
+  }
+
+  /// <summary>
+  /// Current seed pushed to <see cref="Rand"/>
+  /// </summary>
+  public static uint CurrentSeed => randSeed.Invoke();
+
+  /// <summary>
+  /// Current iterations set in <see cref="Rand"/>
+  /// </summary>
+  public static uint CurrentIterations
+  {
+    get
+    {
+      return randIterations.Invoke();
+    }
+    internal set
+    {
+      randIterations.Invoke() = value;
+    }
   }
 
   /// <summary>
@@ -45,5 +76,6 @@ public readonly struct RandBlockPersistent : IDisposable
   void IDisposable.Dispose()
   {
     randSeed.Invoke() = prevSeed;
+    randIterations.Invoke() = prevIterations;
   }
 }

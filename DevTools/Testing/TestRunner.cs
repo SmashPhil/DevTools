@@ -540,6 +540,9 @@ public sealed class TestRunner
   {
     LongEventHandler.QueueLongEvent(delegate
     {
+      // GameplayTips caches and shuffles on first long event, so for deterministic results we
+      // need to reset iterations.
+      RandBlockPersistent.CurrentIterations = 0;
       Verse.Current.Game?.Dispose();
       InitGame(worldGenSettings, mapGenSettings, scenario, storyteller);
       LongEventHandler.QueueLongEvent(delegate
@@ -630,8 +633,10 @@ public sealed class TestRunner
     Verse.Current.Game.Scenario = scenario ?? ScenarioDefOf.Crashlanded.scenario;
     Find.Scenario.PreConfigure();
     Verse.Current.Game.storyteller = storyteller ?? new Storyteller(StorytellerDefOf.Cassandra, DifficultyDefOf.Rough);
+    string worldGenSeed = GenText.RandomSeedString();
+    DevLog.Write($"Generating world with string: {worldGenSeed}");
     Verse.Current.Game.World = WorldGenerator.GenerateWorld(worldGenSettings.percent,
-      GenText.RandomSeedString(),
+      seedString: worldGenSeed,
       worldGenSettings.rainfall, worldGenSettings.temperature, worldGenSettings.population,
       worldGenSettings.landmarkDensity);
     Find.GameInitData.ChooseRandomStartingTile();
