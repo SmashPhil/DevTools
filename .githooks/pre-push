@@ -1,0 +1,21 @@
+#!/bin/sh
+# Builds DevTools and runs its tests before a push; see Baseline.cs.
+# Enable with: git config core.hooksPath .githooks
+set -e
+head=$(git rev-parse HEAD)
+run=
+while read -r _ sha _ _
+do
+  [ "$sha" = 0000000000000000000000000000000000000000 ] && continue
+  if [ "$(git rev-parse "$sha^{commit}")" != "$head" ]
+  then
+    echo "pre-push: $sha isn't checked out, so its tests can't run here (git push --no-verify skips them)" >&2
+    exit 1
+  fi
+  run=1
+done
+[ -n "$run" ] || exit 0
+git diff --quiet HEAD || echo "pre-push: the tests include uncommitted changes" >&2
+dotnet build DevTools/DevTools.csproj -c Release -v q -nologo
+dotnet build Test_DevTools/Test_DevTools.csproj -c Release -v q -nologo
+dotnet run .githooks/Baseline.cs
