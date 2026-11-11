@@ -10,17 +10,27 @@ namespace DevTools.Testing;
 
 internal class LogWatcher : IDisposable
 {
+  private const string IdeoPackageId = "Ludeon.RimWorld.Ideology";
+
   private static readonly ConcurrentDictionary<LogType, List<LogEntry>> LogCounts = [];
 
   private static readonly (LogType logType, string packageId, string pattern)[] VanillaLogsAllowed =
   [
     // Ideo.ExposeData adds Funeral (no corpse) to non-classic ideoligions on load
-    (LogType.Warning, "Ludeon.RimWorld.Ideology", "^A hidden ritual precept was missing, adding: "),
+    (LogType.Warning, IdeoPackageId, "^A hidden ritual precept was missing, adding: (.+)$"),
+    // Relations-related bug where transient pawn leaves relations with colonists, resulting in missing pawn refs.
+    (LogType.Warning, packageId: null,
+      @"Object with load ID Thing_[^\s]+ is referenced \(xml node name: .+?\) but is not deep-saved\. This will cause errors during loading\."),
+    // GenStep_BaseRuins with small maps fails to find valid location, but this fails safely.
+    (LogType.Warning, packageId: null, "did not find any valid rects to generate ruins in for bounds"),
+    // If ideo is removed while still belonging to a faction. Occurs sporadically on subsequent test runs.
+    (LogType.Error, packageId: IdeoPackageId, "^Faction .+? contains ideo .+? which was removed!$")
   ];
 
   private readonly ITestConfig config;
   private readonly ITestCase[] scopes;
 
+  /// <param name="config">Config for verifying log allowance before failing a test.</param>
   /// <param name="scopes">
   /// Tests whose <see cref="WarningsAllowedAttribute"/> and <see cref="ErrorsAllowedAttribute"/> apply to logs
   /// captured by this watcher.
@@ -115,7 +125,12 @@ internal class LogWatcher : IDisposable
   {
     foreach ((LogType type, string packageId, string pattern) in VanillaLogsAllowed)
     {
-      if (type == logType && ModsConfig.IsActive(packageId) && Regex.IsMatch(message, pattern))
+      if (type != logType)
+        continue;
+      if (!packageId.NullOrEmpty() && ModLister.GetActiveModWithIdentifier(packageId, ignorePostfix: true) is null)
+        continue;
+
+      if (Regex.IsMatch(message, pattern))
         return true;
     }
     return false;
