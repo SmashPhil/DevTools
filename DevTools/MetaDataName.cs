@@ -20,4 +20,6 @@ internal static class MetaDataName
   public const string RetryTest = "RetryTest";
   public const string WarningsAllowed = "WarningsAllowed";
   public const string ErrorsAllowed = "ErrorsAllowed";
+  public const string WarningsAllowedFrom = "WarningsAllowedFrom";
+  public const string ErrorsAllowedFrom = "ErrorsAllowedFrom";
 }
