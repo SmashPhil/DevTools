@@ -4,8 +4,8 @@ using JetBrains.Annotations;
 namespace DevTools.Testing;
 
 /// <summary>
-/// Regex patterns of logged warnings that do not fail the annotated test fixture or function, but only when the
-/// warning's stack trace also matches <c>stackPattern</c>, such as a method of the mod that causes it.
+/// Regex patterns of logged warnings that do not fail the annotated test fixture or function when the warning's
+/// stack trace also matches <c>stackPattern</c>.
 /// </summary>
 [PublicAPI]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]

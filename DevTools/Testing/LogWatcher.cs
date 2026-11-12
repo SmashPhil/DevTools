@@ -148,7 +148,7 @@ internal class LogWatcher : IDisposable
       if (AnyMatch(scope.MetaData.Get<string[]>(key), message))
         return true;
 
-      // A stack pattern that matches an empty string matches every stack, so it would allow the message from anywhere.
+      // A stack pattern that matches an empty string would match every stack.
       if (scope.MetaData.Get<StackAllowance>(fromKey) is { StackPattern: { } stackPattern } allowance
         && AnyMatch(allowance.Patterns, message)
         && !Regex.IsMatch(string.Empty, stackPattern) && Regex.IsMatch(stackTrace ?? string.Empty, stackPattern))
