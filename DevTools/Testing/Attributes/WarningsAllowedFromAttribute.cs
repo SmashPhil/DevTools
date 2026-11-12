@@ -9,10 +9,10 @@ namespace DevTools.Testing;
 /// </summary>
 [PublicAPI]
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class WarningsAllowedFromAttribute : MetaDataAttribute<(string stackPattern, string[] patterns)>
+public class WarningsAllowedFromAttribute : MetaDataAttribute<StackAllowance>
 {
   public WarningsAllowedFromAttribute(string stackPattern, params string[] patterns)
-    : base(MetaDataName.WarningsAllowedFrom, (stackPattern, patterns))
+    : base(MetaDataName.WarningsAllowedFrom, new StackAllowance(stackPattern, patterns))
   {
   }
 }

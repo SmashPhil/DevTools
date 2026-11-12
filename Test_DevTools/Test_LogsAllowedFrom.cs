@@ -43,6 +43,14 @@ internal class Test_LogsAllowedFrom
     Assert.IsFalse(LogWatcher.AllowedByScope(scopes, LogType.Error, Warning, OtherModStack));
   }
 
+  [Test, WarningsAllowedFrom("", Warning), ErrorsAllowedFrom(".*", Error)]
+  private void MatchAllStackPatternAllowsNothing()
+  {
+    ITestCase[] scopes = [Test.Current.TestCase];
+    Assert.IsFalse(LogWatcher.AllowedByScope(scopes, LogType.Warning, Warning, OtherModStack));
+    Assert.IsFalse(LogWatcher.AllowedByScope(scopes, LogType.Error, Error, OtherModStack));
+  }
+
   [Test, WarningsAllowed(Warning), ErrorsAllowed(Error)]
   private void MessageOnlyIgnoresStack()
   {
