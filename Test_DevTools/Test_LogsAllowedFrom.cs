@@ -1,3 +1,4 @@
+using System.Linq;
 using DevTools.Testing;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -12,6 +13,9 @@ internal class Test_LogsAllowedFrom
   private const string Warning = "Could not resolve reference to Thing with loadID Thing_Human123";
   private const string Error = "Exception getting object with thing id 123 of type Verse.Pawn";
 
+  private const string ThirdFrame = @"ThirdMod\.Diet\.ExposeData";
+  private const string ThirdWarning = "Could not resolve reference to Pawn with loadID Thing_Human456";
+
   private const string OtherModStack =
     "    at Verse.Log.Warning(String text) [0x0]\n" +
     "    at Verse.Scribe_References.Look[Pawn](Pawn& refee, String label, Boolean saveDestroyedThings) [0x5C]\n" +
@@ -22,6 +26,12 @@ internal class Test_LogsAllowedFrom
     "    at Verse.Log.Warning(String text) [0x0]\n" +
     "    at Verse.Scribe_References.Look[Pawn](Pawn& refee, String label, Boolean saveDestroyedThings) [0x5C]\n" +
     "    at ModUnderTest.CompOwner.PostExposeData() [0x10]\n" +
+    "    at Verse.CrossRefHandler.ResolveAllCrossReferences() [0x88]\n";
+
+  private const string ThirdModStack =
+    "    at Verse.Log.Warning(String text) [0x0]\n" +
+    "    at Verse.Scribe_References.Look[Pawn](Pawn& refee, String label, Boolean saveDestroyedThings) [0x5C]\n" +
+    "    at ThirdMod.Diet.ExposeData() [0x22]\n" +
     "    at Verse.CrossRefHandler.ResolveAllCrossReferences() [0x88]\n";
 
   [Test, WarningsAllowedFrom(Frame, Warning), ErrorsAllowedFrom(Frame, Error)]
@@ -59,4 +69,29 @@ internal class Test_LogsAllowedFrom
     Assert.IsTrue(LogWatcher.AllowedByScope(scopes, LogType.Warning, Warning, ModUnderTestStack));
     Assert.IsTrue(LogWatcher.AllowedByScope(scopes, LogType.Error, Error, string.Empty));
   }
+
+  [Test, WarningsAllowedFrom(Frame, Warning), WarningsAllowedFrom(ThirdFrame, ThirdWarning)]
+  private void SeveralSourcesKeepTheirOwnPatterns()
+  {
+    ITestCase[] scopes = [Test.Current.TestCase];
+    Assert.IsTrue(LogWatcher.AllowedByScope(scopes, LogType.Warning, Warning, OtherModStack));
+    Assert.IsTrue(LogWatcher.AllowedByScope(scopes, LogType.Warning, ThirdWarning, ThirdModStack));
+    Assert.IsFalse(LogWatcher.AllowedByScope(scopes, LogType.Warning, Warning, ThirdModStack));
+    Assert.IsFalse(LogWatcher.AllowedByScope(scopes, LogType.Warning, ThirdWarning, OtherModStack));
+  }
+
+  [Test]
+  private void RepeatedAllowancesAddUpThroughInheritance()
+  {
+    MetaDataContainer metaData = new();
+    metaData.Load(typeof(DerivedScope));
+    Assert.AreEqual(2, metaData.GetAll<StackAllowance>(MetaDataName.WarningsAllowedFrom).Count());
+    Assert.AreEqual(2, metaData.GetAll<StackAllowance>(MetaDataName.ErrorsAllowedFrom).Count());
+  }
+
+  [WarningsAllowedFrom(Frame, Warning), ErrorsAllowedFrom(Frame, Error)]
+  private class BaseScope;
+
+  [WarningsAllowedFrom(ThirdFrame, ThirdWarning), ErrorsAllowedFrom(ThirdFrame, Error)]
+  private class DerivedScope : BaseScope;
 }

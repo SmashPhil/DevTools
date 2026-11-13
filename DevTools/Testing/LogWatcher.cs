@@ -149,10 +149,12 @@ internal class LogWatcher : IDisposable
         return true;
 
       // A stack pattern that matches an empty string would match every stack.
-      if (scope.MetaData.Get<StackAllowance>(fromKey) is { StackPattern: { } stackPattern } allowance
-        && AnyMatch(allowance.Patterns, message)
-        && !Regex.IsMatch(string.Empty, stackPattern) && Regex.IsMatch(stackTrace ?? string.Empty, stackPattern))
-        return true;
+      foreach (StackAllowance allowance in scope.MetaData.GetAll<StackAllowance>(fromKey))
+      {
+        if (allowance.StackPattern is { } stackPattern && AnyMatch(allowance.Patterns, message)
+          && !Regex.IsMatch(string.Empty, stackPattern) && Regex.IsMatch(stackTrace ?? string.Empty, stackPattern))
+          return true;
+      }
     }
     return false;
   }
