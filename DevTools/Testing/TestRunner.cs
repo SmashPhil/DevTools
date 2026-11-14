@@ -34,6 +34,7 @@ public sealed class TestRunner
   private string tcpSessionId;
   private Map currentMap;
   private TransitionState state = TransitionState.Idle;
+  private bool autosaveAllowed;
 
   /// <summary>
   /// Event for runner state changes.
@@ -50,6 +51,12 @@ public sealed class TestRunner
   public static bool Active => Current != null;
 
   public static TestRunner Current { get; private set; }
+
+  /// <summary>
+  /// True while tests run, except during a fixture or function with
+  /// <see cref="AutosaveAllowedAttribute"/>: the game does not autosave.
+  /// </summary>
+  internal static bool AutosaveHeld => Current is { autosaveAllowed: false };
 
   private bool StopRequested { get; set; }
 
@@ -175,6 +182,8 @@ public sealed class TestRunner
       using (new Test.Scope(fixture))
       {
         using LogWatcher fxWatcher = new(testManager.Config, fixture);
+        bool fixtureAllowsAutosave = fixture.MetaData.Get<bool>(MetaDataName.AutosaveAllowed);
+        autosaveAllowed = fixtureAllowsAutosave;
 
         object instance = fixture.CreateInstance();
         FixtureGameSettings fxtSettings = new(instance);
@@ -254,6 +263,8 @@ public sealed class TestRunner
             int testRetries = function.MetaData.Get<ushort>(MetaDataName.RetryTest);
             int maxRetries = Mathf.Max(testRetries, config.RetryAttempts);
             int attempts = 0;
+            autosaveAllowed = fixtureAllowsAutosave ||
+                              function.MetaData.Get<bool>(MetaDataName.AutosaveAllowed);
             do
             {
               using Test.Scope fns = new(function);
@@ -287,6 +298,7 @@ public sealed class TestRunner
                 }
               }
             } while (attempts <= maxRetries && function.Status is Status.Failed);
+            autosaveAllowed = fixtureAllowsAutosave;
 
             report.Add(function);
             tcp?.SendResult(function);
@@ -302,6 +314,7 @@ public sealed class TestRunner
         }
         finally
         {
+          autosaveAllowed = false;
           try
           {
             if (!RunPostTestActions(fixture))
