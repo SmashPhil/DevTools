@@ -51,6 +51,8 @@ public sealed class TestRunner
 
   public static TestRunner Current { get; private set; }
 
+  internal static bool AutosaveHeld => Active && !AllowsAutosave(Test.Current);
+
   private bool StopRequested { get; set; }
 
   public void AddFilter(TestFilter filter)
@@ -357,6 +359,16 @@ public sealed class TestRunner
     foreach (StopOnTest condition in stopConditions)
     {
       if (condition(testCase))
+        return true;
+    }
+    return false;
+  }
+
+  private static bool AllowsAutosave(ITestGroup group)
+  {
+    for (; group != null; group = group.Parent)
+    {
+      if (group.TestCase?.MetaData.Get<bool>(MetaDataName.AutosaveAllowed) is true)
         return true;
     }
     return false;

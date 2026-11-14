@@ -5,6 +5,7 @@ using DevTools.Benchmarking;
 using DevTools.Testing;
 using HarmonyLib;
 using LudeonTK;
+using RimWorld;
 using Verse;
 
 namespace DevTools;
@@ -25,6 +26,9 @@ internal static class DevHarmony
       original: AccessTools.Method(typeof(DebugWindowsOpener), "DrawButtons"),
       postfix: new HarmonyMethod(typeof(DevHarmony),
         nameof(DrawDebugWindowButton)));
+    Harmony.Patch(
+      original: AccessTools.Method(typeof(Autosaver), nameof(Autosaver.AutosaverTick)),
+      prefix: new HarmonyMethod(typeof(DevHarmony), nameof(HoldAutosaveDuringTests)));
 
     LoadTypes();
   }
@@ -145,6 +149,12 @@ internal static class DevHarmony
         devToolWithMenu.OpenMenu));
     }
     Find.WindowStack.Add(new Dialog_DebugOptionListLister(toolOptions, "Tools"));
+  }
+
+  // Keeps a test run from autosaving its world into the player's Saves folder.
+  private static bool HoldAutosaveDuringTests()
+  {
+    return !TestRunner.AutosaveHeld;
   }
 
   private static void DrawDebugWindowButton(WidgetRow ___widgetRow, out float ___widgetRowFinalX)
