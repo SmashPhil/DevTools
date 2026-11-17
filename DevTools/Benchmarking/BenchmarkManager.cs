@@ -149,9 +149,12 @@ internal class BenchmarkManager : IDevToolWithMenu
 					method.Invoke(null, []);
 				break;
 				case 1:
+          Type genericParam = parameters[0].ParameterType.IsByRef
+            ? parameters[0].ParameterType.GetElementType()
+            : parameters[0].ParameterType;
 					GenGeneric.InvokeStaticGenericMethod(
 						typeof(BenchmarkManager),
-						parameters[0].ParameterType, nameof(InvokeWithContext), type, method);
+            genericParam, nameof(InvokeWithContext), type, method);
 				break;
 			}
 		}
@@ -183,12 +186,15 @@ internal class BenchmarkManager : IDevToolWithMenu
 				}
 				break;
 				case 1:
-				{
+        {
+          Type genericParam = parameters[0].ParameterType.IsByRef
+            ? parameters[0].ParameterType.GetElementType()
+            : parameters[0].ParameterType;
 					Result results = method.ReturnType == typeof(void) ?
 						(Result)GenGeneric.InvokeStaticGenericMethod(typeof(BenchmarkManager),
-							parameters[0].ParameterType, nameof(RunTestWithContext), type, method, measurement) :
+              genericParam, nameof(RunTestWithContext), type, method, measurement) :
 						(Result)AccessTools.Method(typeof(BenchmarkManager), nameof(RunTestWithContextAndReturn))
-						 .MakeGenericMethod(parameters[0].ParameterType, method.ReturnType)
+						 .MakeGenericMethod(genericParam, method.ReturnType)
 						 .Invoke(null, [type, method, measurement]);
 
 					resultsByMethod.Add((name, results));
