@@ -32,7 +32,8 @@ internal class LogWatcher : IDisposable
 
   /// <param name="config">Config for verifying log allowance before failing a test.</param>
   /// <param name="scopes">
-  /// Tests whose <see cref="WarningsAllowedAttribute"/> and <see cref="ErrorsAllowedAttribute"/> apply to logs
+  /// Tests whose <see cref="WarningsAllowedAttribute"/>, <see cref="ErrorsAllowedAttribute"/>,
+  /// <see cref="WarningsAllowedFromAttribute"/> and <see cref="ErrorsAllowedFromAttribute"/> apply to logs
   /// captured by this watcher.
   /// </param>
   public LogWatcher(ITestConfig config, params ITestCase[] scopes)
@@ -100,7 +101,7 @@ internal class LogWatcher : IDisposable
     if (
       VanillaLogAllowed(logType, logEntry.message)
       || config.LogContained(logType, logEntry.message)
-      || AllowedByScope(scopes, logType, logEntry.message)
+      || AllowedByScope(scopes, logType, logEntry.message, logEntry.stackTrace)
     )
       return;
 
@@ -136,19 +137,36 @@ internal class LogWatcher : IDisposable
     return false;
   }
 
-  private static bool AllowedByScope(ITestCase[] scopes, LogType logType, string message)
+  internal static bool AllowedByScope(ITestCase[] scopes, LogType logType, string message, string stackTrace)
   {
     string key =
       logType is LogType.Warning ? MetaDataName.WarningsAllowed : MetaDataName.ErrorsAllowed;
+    string fromKey =
+      logType is LogType.Warning ? MetaDataName.WarningsAllowedFrom : MetaDataName.ErrorsAllowedFrom;
     foreach (ITestCase scope in scopes)
     {
-      if (scope.MetaData.Get<string[]>(key) is not { } patterns)
-        continue;
-      foreach (string pattern in patterns)
+      if (AnyMatch(scope.MetaData.Get<string[]>(key), message))
+        return true;
+
+      // A stack pattern that matches an empty string would match every stack.
+      foreach (StackAllowance allowance in scope.MetaData.GetAll<StackAllowance>(fromKey))
       {
-        if (Regex.IsMatch(message, pattern))
+        if (allowance.StackPattern is { } stackPattern && AnyMatch(allowance.Patterns, message)
+          && !Regex.IsMatch(string.Empty, stackPattern) && Regex.IsMatch(stackTrace ?? string.Empty, stackPattern))
           return true;
       }
+    }
+    return false;
+  }
+
+  private static bool AnyMatch(string[] patterns, string input)
+  {
+    if (patterns is null)
+      return false;
+    foreach (string pattern in patterns)
+    {
+      if (Regex.IsMatch(input, pattern))
+        return true;
     }
     return false;
   }
