@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -33,6 +33,17 @@ public static class Benchmark
 				"Benchmark.DebuggerAttached".GetHashCode());
 		}
 #endif
+	}
+
+	internal const int MaxUnrollFactor = 16;
+
+	internal static int GetUnrollFactor(int callsPerPartition)
+	{
+		// Each unrolled call emits IL, so cap the batch size and align it with the partition.
+		int unrollFactor = Math.Min(callsPerPartition, MaxUnrollFactor);
+		while (callsPerPartition % unrollFactor != 0)
+			unrollFactor--;
+		return unrollFactor;
 	}
 
 	internal static void GetPartitionedArrays(int sampleSize, int partitions, out int[] thresholds, out long[] overhead,
@@ -75,16 +86,11 @@ public static class Benchmark
   [MethodImpl(MethodImplOptions.NoOptimization)]
 	public static unsafe Result Run(IntPtr funcPtr, Measurement measurement = Measurement.Auto)
 	{
-		const int UnrollFactor = 16;
-
 		ShowWarnings();
 
 		IntPtr noOpPtr = (IntPtr)(delegate*<void>)&NoOp;
 
-		var harness = TestHarness.Create(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarness.Create(noOpPtr, UnrollFactor);
-
-		Runner runner = new(funcPtr, noOpPtr, harness, noOpHarness)
+		Runner runner = new(funcPtr, noOpPtr, TestHarness.Create)
 		{
 			Measurement = measurement
 		};
@@ -106,16 +112,11 @@ public static class Benchmark
 	[MethodImpl(MethodImplOptions.NoOptimization)]
 	public static unsafe Result Run<R>(IntPtr funcPtr, Measurement measurement = Measurement.Auto)
 	{
-		const int UnrollFactor = 16;
-
 		ShowWarnings();
 
 		IntPtr noOpPtr = (IntPtr)(delegate*<R>)&NoOp;
 
-		var harness = TestHarness.Create<R>(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarness.Create<R>(noOpPtr, UnrollFactor);
-
-		Runner runner = new(funcPtr, noOpPtr, harness, noOpHarness)
+		Runner runner = new(funcPtr, noOpPtr, TestHarness.Create<R>)
 		{
 			Measurement = measurement
 		};
@@ -138,16 +139,11 @@ public static class Benchmark
 	public static unsafe Result Run<T>(IntPtr funcPtr, T context,
 		Measurement measurement = Measurement.Auto) where T : struct
 	{
-		const int UnrollFactor = 16;
-
 		ShowWarnings();
 
 		IntPtr noOpPtr = (IntPtr)(delegate*<ref T, void>)&NoOp;
 
-		var harness = TestHarnessWithContext<T>.Create(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarnessWithContext<T>.Create(noOpPtr, UnrollFactor);
-
-		RunnerWithContext<T> runner = new(funcPtr, noOpPtr, harness, noOpHarness)
+		RunnerWithContext<T> runner = new(funcPtr, noOpPtr, TestHarnessWithContext<T>.Create)
 		{
 			Measurement = measurement
 		};
@@ -170,16 +166,11 @@ public static class Benchmark
 	public static unsafe Result Run<T, R>(IntPtr funcPtr, T context,
 		Measurement measurement = Measurement.Auto) where T : struct
 	{
-		const int UnrollFactor = 16;
-
 		ShowWarnings();
 
 		IntPtr noOpPtr = (IntPtr)(delegate*<ref T, R>)&NoOp;
 
-		var harness = TestHarnessWithContext<T>.Create<R>(funcPtr, UnrollFactor);
-		var noOpHarness = TestHarnessWithContext<T>.Create<R>(noOpPtr, UnrollFactor);
-
-		RunnerWithContext<T> runner = new(funcPtr, noOpPtr, harness, noOpHarness)
+		RunnerWithContext<T> runner = new(funcPtr, noOpPtr, TestHarnessWithContext<T>.Create<R>)
 		{
 			Measurement = measurement
 		};

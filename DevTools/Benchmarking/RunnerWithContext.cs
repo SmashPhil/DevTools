@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Threading;
 using Verse;
@@ -10,16 +10,14 @@ internal class RunnerWithContext<T>
   private readonly IntPtr funcPtr;
   private readonly IntPtr noOpPtr;
 
-  private readonly TestHarnessWithContext<T> harness;
-  private readonly TestHarnessWithContext<T> noOpHarness;
+  private readonly Func<IntPtr, int, TestHarnessWithContext<T>> createHarness;
 
-  public RunnerWithContext(IntPtr funcPtr, IntPtr noOpPtr, TestHarnessWithContext<T> harness,
-    TestHarnessWithContext<T> noOpHarness)
+  public RunnerWithContext(IntPtr funcPtr, IntPtr noOpPtr,
+    Func<IntPtr, int, TestHarnessWithContext<T>> createHarness)
   {
     this.funcPtr = funcPtr;
     this.noOpPtr = noOpPtr;
-    this.harness = harness;
-    this.noOpHarness = noOpHarness;
+    this.createHarness = createHarness;
   }
 
   public Benchmark.Measurement Measurement { get; internal set; } = Benchmark.Measurement.Auto;
@@ -32,10 +30,15 @@ internal class RunnerWithContext<T>
     T warmupContext = context;
 
     // Warmup
-    Warmup(harness, ref context);
-    Warmup(noOpHarness, ref warmupContext);
+    var warmupHarness = createHarness(funcPtr, Benchmark.MaxUnrollFactor);
+    var warmupNoOpHarness = createHarness(noOpPtr, Benchmark.MaxUnrollFactor);
+    Warmup(warmupHarness, ref context);
+    Warmup(warmupNoOpHarness, ref warmupContext);
 
-    (int sampleSize, int partitions) = EstimateSampleSize(funcPtr, ref context);
+    (int sampleSize, int partitions) = EstimateSampleSize(ref context);
+    int unrollFactor = Benchmark.GetUnrollFactor(sampleSize / partitions);
+    var harness = createHarness(funcPtr, unrollFactor);
+    var noOpHarness = createHarness(noOpPtr, unrollFactor);
     Benchmark.GetPartitionedArrays(sampleSize, partitions, out int[] thresholds, out long[] overhead,
       out long[] results);
 
@@ -69,9 +72,9 @@ internal class RunnerWithContext<T>
     }
   }
 
-  private static (int sampleSize, int partitions) EstimateSampleSize(IntPtr funcPtr, ref T context)
+  private (int sampleSize, int partitions) EstimateSampleSize(ref T context)
   {
-    var estimateHarness = TestHarnessWithContext<T>.Create(funcPtr, Runner.TestInterval);
+    var estimateHarness = createHarness(funcPtr, Runner.TestInterval);
     Warmup(estimateHarness, ref context);
 
     // Make sure we're not jumping into an expensive estimation, clamp sample size if so

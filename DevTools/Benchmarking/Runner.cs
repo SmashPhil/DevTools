@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Threading;
 using Verse;
@@ -14,15 +14,13 @@ internal class Runner
   private readonly IntPtr funcPtr;
   private readonly IntPtr noOpPtr;
 
-  private readonly TestHarness harness;
-  private readonly TestHarness noOpHarness;
+  private readonly Func<IntPtr, int, TestHarness> createHarness;
 
-  public Runner(IntPtr funcPtr, IntPtr noOpPtr, TestHarness harness, TestHarness noOpHarness)
+  public Runner(IntPtr funcPtr, IntPtr noOpPtr, Func<IntPtr, int, TestHarness> createHarness)
   {
     this.funcPtr = funcPtr;
     this.noOpPtr = noOpPtr;
-    this.harness = harness;
-    this.noOpHarness = noOpHarness;
+    this.createHarness = createHarness;
   }
 
   public Benchmark.Measurement Measurement { get; internal set; } = Benchmark.Measurement.Auto;
@@ -32,10 +30,15 @@ internal class Runner
     // Elevate process and thread priority
     using NormalizeScheduling ns = new();
 
-    Warmup(harness);
-    Warmup(noOpHarness);
+    var warmupHarness = createHarness(funcPtr, Benchmark.MaxUnrollFactor);
+    var warmupNoOpHarness = createHarness(noOpPtr, Benchmark.MaxUnrollFactor);
+    Warmup(warmupHarness);
+    Warmup(warmupNoOpHarness);
 
-    (int sampleSize, int partitions) = EstimateSampleSize(funcPtr);
+    (int sampleSize, int partitions) = EstimateSampleSize();
+    int unrollFactor = Benchmark.GetUnrollFactor(sampleSize / partitions);
+    var harness = createHarness(funcPtr, unrollFactor);
+    var noOpHarness = createHarness(noOpPtr, unrollFactor);
     Benchmark.GetPartitionedArrays(sampleSize, partitions, out int[] thresholds, out long[] overhead,
       out long[] results);
 
@@ -64,9 +67,9 @@ internal class Runner
     }
   }
 
-  private static (int sampleSize, int partitions) EstimateSampleSize(IntPtr funcPtr)
+  private (int sampleSize, int partitions) EstimateSampleSize()
   {
-    var estimateHarness = TestHarness.Create(funcPtr, TestInterval);
+    var estimateHarness = createHarness(funcPtr, TestInterval);
     Warmup(estimateHarness);
 
     // Make sure we're not jumping into an expensive estimation, clamp sample size if so
