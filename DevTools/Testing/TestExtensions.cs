@@ -44,7 +44,7 @@ public static class TestExtensions
       return;
     }
 
-    if (methodInfo.MissingRequiredMods())
+    if (methodInfo.MissingRequiredMods() || methodInfo.HasDisallowedMods())
       return;
 
     TestGenerator generator = new(fixture, methodInfo, methodType);
@@ -87,6 +87,12 @@ public static class TestExtensions
     }
     return memberInfo.TryGetAttribute<LoadIfAnyModsActiveAttribute>() is { } loadIfAnyModActive &&
            !ModLister.AnyModActiveNoSuffix(loadIfAnyModActive.PackageIds);
+  }
+
+  public static bool HasDisallowedMods(this MemberInfo memberInfo)
+  {
+    return memberInfo.TryGetAttribute<LoadIfModsInactiveAttribute>() is { } loadIfModsInactive &&
+           ModLister.AnyModActiveNoSuffix(loadIfModsInactive.PackageIds);
   }
 
   public static List<object[]> ExtractParameters(MethodBase method)

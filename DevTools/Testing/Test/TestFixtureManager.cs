@@ -63,7 +63,7 @@ public class TestFixtureManager : IDevToolWithMenu, ITestManager
     if (attr is null || type.IsAbstract)
       return false;
 
-    if (type.MissingRequiredMods())
+    if (type.MissingRequiredMods() || type.HasDisallowedMods())
       return false;
 
     ConstructorInfo[] constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);

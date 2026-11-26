@@ -75,7 +75,7 @@ internal class SmokeTestFixture : ITestFixture
             return false;
         }
 
-        if (methodInfo.MissingRequiredMods())
+        if (methodInfo.MissingRequiredMods() || methodInfo.HasDisallowedMods())
             return false;
 
         TestFunction method = new(this, methodInfo, MethodType.Test);
